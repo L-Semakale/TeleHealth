@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/models.dart';
 import '../../core/widgets/brand_logo.dart';
-import '../../core/widgets/brand_styles.dart';
 import '../../core/widgets/common_widgets.dart';
 import '../auth/auth_controller.dart';
 import 'admin_controller.dart';
@@ -107,7 +105,7 @@ class _DashboardHeader extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.purple.withOpacity(0.1),
+              color: Colors.purple.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Text(
@@ -250,13 +248,18 @@ class _AdminContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (index == 0) return const _AdminDashboard();
-    if (index == 1) return const _AdminUsersScreen();
-    if (index == 2) return const _AdminConsultationsScreen();
-    if (index == 3) return const _AdminAnalyticsScreen();
-    if (index == 4) return const _AdminClinicsScreen();
-    if (index == 5) return const _AdminHealthScreen();
-    return const SizedBox.shrink();
+    Widget child;
+    if (index == 0) child = const _AdminDashboard();
+    else if (index == 1) child = const _AdminUsersScreen();
+    else if (index == 2) child = const _AdminConsultationsScreen();
+    else if (index == 3) child = const _AdminAnalyticsScreen();
+    else if (index == 4) child = const _AdminClinicsScreen();
+    else if (index == 5) child = const _AdminHealthScreen();
+    else child = const SizedBox.shrink();
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: KeyedSubtree(key: ValueKey(index), child: child),
+    );
   }
 }
 
@@ -281,7 +284,7 @@ class _AdminUsersScreen extends ConsumerWidget {
             trailing: Switch(
               value: u.isActive,
               onChanged: (v) => ref.read(adminControllerProvider.notifier).toggleUserStatus(u.id, v),
-              activeColor: const Color(0xFFD6246F),
+              activeThumbColor: const Color(0xFFD6246F),
             ),
             onTap: () => _showUserDetails(context, ref, u),
           ),
@@ -306,7 +309,7 @@ class _AdminUsersScreen extends ConsumerWidget {
                 leading: const Icon(Icons.medical_services, color: Colors.blue),
                 title: const Text('Promote to Provider'),
                 onTap: () {
-                  ref.read(adminControllerProvider.notifier).toggleUserStatus(user.id, true); // Dummy logic for promotion
+                  ref.read(adminControllerProvider.notifier).setProviderRole(user.id);
                   Navigator.pop(context);
                 },
               ),
@@ -480,7 +483,7 @@ class _AdminHealthScreen extends ConsumerWidget {
         const Divider(),
         _HealthRow(label: 'Redis Cache', status: health.redisStatus, color: _getStatusColor(health.redisStatus)),
         const SizedBox(height: 32),
-        Text('System Uptime: ${health.uptimeSeconds} seconds', style: TextStyle(color: Colors.grey[600])),
+        Text('System Uptime: ${_formatUptime(health.uptimeSeconds)}', style: TextStyle(color: Colors.grey[600])),
       ],
     );
   }
@@ -490,10 +493,23 @@ class _AdminHealthScreen extends ConsumerWidget {
     if (status == 'degraded') return Colors.orange;
     return Colors.red;
   }
+
+  String _formatUptime(int seconds) {
+    final d = Duration(seconds: seconds);
+    if (d.inDays > 0) return '${d.inDays}d ${d.inHours % 24}h ${d.inMinutes % 60}m';
+    if (d.inHours > 0) return '${d.inHours}h ${d.inMinutes % 60}m';
+    return '${d.inMinutes}m ${d.inSeconds % 60}s';
+  }
 }
 
 class _AdminDashboard extends ConsumerWidget {
   const _AdminDashboard();
+
+  Color _statusColor(String s) {
+    if (s == 'healthy') return Colors.green;
+    if (s == 'degraded') return Colors.orange;
+    return Colors.red;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -501,8 +517,14 @@ class _AdminDashboard extends ConsumerWidget {
     final ctrl = ref.read(adminControllerProvider.notifier);
 
     if (state.analytics == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.loadDashboard());
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await ctrl.loadDashboard();
+        await ctrl.loadHealth();
+      });
       return const LoadingView();
+    }
+    if (state.health == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.loadHealth());
     }
 
     final analytics = state.analytics!;
@@ -524,23 +546,26 @@ class _AdminDashboard extends ConsumerWidget {
           const SizedBox(height: 32),
           const Text('System Health Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey[100]!),
-            ),
-            child: Column(
-              children: [
-                _HealthRow(label: 'API Service', status: 'Healthy', color: Colors.green),
-                const Divider(),
-                _HealthRow(label: 'Database', status: 'Healthy', color: Colors.green),
-                const Divider(),
-                _HealthRow(label: 'ML Engine', status: 'Degraded', color: Colors.orange),
-              ],
-            ),
-          ),
+          if (state.health != null)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey[100]!),
+              ),
+              child: Column(
+                children: [
+                  _HealthRow(label: 'API Service', status: state.health!.apiStatus, color: _statusColor(state.health!.apiStatus)),
+                  const Divider(),
+                  _HealthRow(label: 'Database', status: state.health!.databaseStatus, color: _statusColor(state.health!.databaseStatus)),
+                  const Divider(),
+                  _HealthRow(label: 'ML Engine', status: state.health!.mlServiceStatus, color: _statusColor(state.health!.mlServiceStatus)),
+                ],
+              ),
+            )
+          else
+            const Center(child: CircularProgressIndicator()),
         ],
       ),
     );
@@ -564,7 +589,7 @@ class _HealthRow extends StatelessWidget {
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
             child: Text(status, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -600,7 +625,7 @@ class _DashboardStatCard extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
             child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 20),

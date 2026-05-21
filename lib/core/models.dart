@@ -54,18 +54,38 @@ class Facility {
   });
 }
 
+enum ReferralStatus { newReferral, viewed }
+
 class Consultation {
   final String id;
   final String status;
   final String patientAnonymousId;
   final String providerId;
+  final String triageClassification;
+  final DateTime createdAt;
+  final DateTime? lastMessageAt;
+  final String lastMessagePreview;
+  final int unreadCount;
 
   const Consultation({
     required this.id,
     required this.status,
     required this.patientAnonymousId,
     required this.providerId,
+    this.triageClassification = 'routine',
+    required this.createdAt,
+    this.lastMessageAt,
+    this.lastMessagePreview = '',
+    this.unreadCount = 0,
   });
+
+  Duration get waitingTime => DateTime.now().difference(createdAt);
+
+  String get waitingLabel {
+    final d = waitingTime;
+    if (d.inMinutes < 60) return '${d.inMinutes}m waiting';
+    return '${d.inHours}h ${d.inMinutes % 60}m waiting';
+  }
 }
 
 class ChatMessage {
@@ -83,18 +103,22 @@ class ChatMessage {
 }
 
 class Referral {
+  final String id;
   final String facilityName;
   final String address;
   final String phone;
   final String notes;
   final DateTime issuedDate;
+  final ReferralStatus status;
 
   const Referral({
+    required this.id,
     required this.facilityName,
     required this.address,
     required this.phone,
     required this.notes,
     required this.issuedDate,
+    this.status = ReferralStatus.newReferral,
   });
 }
 

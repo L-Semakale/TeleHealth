@@ -15,7 +15,7 @@ ThemeData buildAppTheme() {
       secondary: secondary,
       tertiary: tertiary,
       surfaceTint: surfaceTint,
-      background: bg,
+      surface: bg,
     ),
     scaffoldBackgroundColor: bg,
     cardTheme: CardThemeData(

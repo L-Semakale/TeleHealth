@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models.dart';
 import '../../core/services/api_service.dart';
+import '../../core/storage/token_storage.dart';
 
 class PatientDataState {
   final bool loading;
@@ -44,11 +45,21 @@ class PatientDataState {
 }
 
 class PatientController extends StateNotifier<PatientDataState> {
-  PatientController(this._api) : super(const PatientDataState()) {
-    _attemptSyncOfflineSymptoms();
+  PatientController(this._api, this._storage) : super(const PatientDataState()) {
+    _init();
   }
   static const _offlineSymptomsKey = 'offline_symptom_queue';
   final ApiService _api;
+  final TokenStorage _storage;
+
+  Future<void> _init() async {
+    await _attemptSyncOfflineSymptoms();
+    await Future.wait([
+      loadConsultations(),
+      loadReferrals(),
+      loadFacilities(),
+    ]);
+  }
 
   Future<TriageResult?> submitSymptoms(
     List<String> symptoms,
@@ -126,6 +137,26 @@ class PatientController extends StateNotifier<PatientDataState> {
 
   Future<void> loadFacilities({String search = ''}) async {
     state = state.copyWith(loading: true, error: null);
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity.contains(ConnectivityResult.none)) {
+      final cached = await _storage.getCachedFacilities();
+      if (cached != null) {
+        final items = (jsonDecode(cached) as List<dynamic>)
+            .map((e) => Facility(
+                  id: e['id'] as String? ?? '',
+                  name: e['name'] as String? ?? '',
+                  address: e['address'] as String? ?? '',
+                  phone: e['phone'] as String? ?? '',
+                  latitude: (e['latitude'] as num?)?.toDouble() ?? 0,
+                  longitude: (e['longitude'] as num?)?.toDouble() ?? 0,
+                ))
+            .toList();
+        state = state.copyWith(loading: false, facilities: items);
+      } else {
+        state = state.copyWith(loading: false, error: 'No connection. Cached data unavailable.');
+      }
+      return;
+    }
     try {
       final data = await _api.facilities(search: search);
       state = state.copyWith(loading: false, facilities: data);
@@ -133,10 +164,42 @@ class PatientController extends StateNotifier<PatientDataState> {
       state = state.copyWith(loading: false, error: e.message);
     }
   }
+
+  Future<List<ChatMessage>> loadMessages(String consultationId) async {
+    return _api.messages(consultationId);
+  }
+
+  Future<void> sendMessage(String consultationId, String body) async {
+    await _api.sendMessage(consultationId, body);
+  }
+
+  Future<void> markReferralViewed(String referralId) async {
+    try {
+      await _api.markReferralViewed(referralId);
+      final updated = state.referrals.map((r) {
+        if (r.id == referralId) {
+          return Referral(
+            id: r.id,
+            facilityName: r.facilityName,
+            address: r.address,
+            phone: r.phone,
+            notes: r.notes,
+            issuedDate: r.issuedDate,
+            status: ReferralStatus.viewed,
+          );
+        }
+        return r;
+      }).toList();
+      state = state.copyWith(referrals: updated);
+    } on AppException catch (e) {
+      state = state.copyWith(error: e.message);
+    }
+  }
 }
 
 final patientControllerProvider =
     StateNotifierProvider<PatientController, PatientDataState>((ref) {
   final api = ref.watch(apiServiceProvider);
-  return PatientController(api);
+  final storage = ref.watch(tokenStorageProvider);
+  return PatientController(api, storage);
 });

@@ -16,6 +16,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   String? _validatePhone(String? value) {
     if (value == null || value.trim().isEmpty) return 'Phone number required';
@@ -66,7 +67,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 controller: _passwordController,
                 label: 'Password',
                 icon: Icons.lock_outlined,
-                obscureText: true,
+                obscureText: _obscurePassword,
+                onToggleObscure: () => setState(() => _obscurePassword = !_obscurePassword),
                 validator: (v) => (v == null || v.length < 6) ? 'Password too short' : null,
               ),
               const SizedBox(height: 12),
@@ -139,6 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required String label,
     required IconData icon,
     bool obscureText = false,
+    VoidCallback? onToggleObscure,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
   }) {
@@ -150,6 +153,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, size: 20),
+        suffixIcon: onToggleObscure != null
+            ? Semantics(
+                label: obscureText ? 'Show password' : 'Hide password',
+                child: IconButton(
+                  icon: Icon(obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
+                  onPressed: onToggleObscure,
+                ),
+              )
+            : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -208,6 +220,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _phone = TextEditingController();
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
 
   String? _validatePhone(String? value) {
     if (value == null || value.trim().isEmpty) return 'Phone number required';
@@ -265,7 +279,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 controller: _password,
                 label: 'Password',
                 icon: Icons.lock_outlined,
-                obscureText: true,
+                obscureText: _obscurePassword,
+                onToggleObscure: () => setState(() => _obscurePassword = !_obscurePassword),
                 validator: (v) => (v == null || v.length < 6) ? 'At least 6 chars' : null,
               ),
               const SizedBox(height: 20),
@@ -273,7 +288,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 controller: _confirmPassword,
                 label: 'Confirm Password',
                 icon: Icons.lock_reset_outlined,
-                obscureText: true,
+                obscureText: _obscureConfirm,
+                onToggleObscure: () => setState(() => _obscureConfirm = !_obscureConfirm),
                 validator: (v) => v != _password.text ? 'Passwords do not match' : null,
               ),
               const SizedBox(height: 32),
@@ -356,6 +372,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     required String label,
     required IconData icon,
     bool obscureText = false,
+    VoidCallback? onToggleObscure,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
   }) {
@@ -367,6 +384,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, size: 20),
+        suffixIcon: onToggleObscure != null
+            ? Semantics(
+                label: obscureText ? 'Show password' : 'Hide password',
+                child: IconButton(
+                  icon: Icon(obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
+                  onPressed: onToggleObscure,
+                ),
+              )
+            : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -427,8 +453,8 @@ class _AuthResponsiveLayout extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFFD6246F).withOpacity(0.8),
-                    Colors.black.withOpacity(0.4),
+                    const Color(0xFFD6246F).withValues(alpha: 0.8),
+                    Colors.black.withValues(alpha: 0.4),
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,

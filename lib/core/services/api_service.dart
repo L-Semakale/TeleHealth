@@ -31,6 +31,7 @@ abstract class ApiService {
   Future<Facility> addFacility(Facility facility);
   Future<Facility> updateFacility(Facility facility);
   Future<void> deleteFacility(String facilityId);
+  Future<void> markReferralViewed(String referralId);
 }
 
 class AppException implements Exception {
@@ -40,7 +41,7 @@ class AppException implements Exception {
 }
 
 class RealApiService implements ApiService {
-  RealApiService(this._storage)
+  RealApiService(this._storage, {this.onUnauthorized})
       : _dio = Dio(
           BaseOptions(
             baseUrl: AppConfig.baseUrl,
@@ -58,12 +59,19 @@ class RealApiService implements ApiService {
           }
           handler.next(options);
         },
+        onError: (error, handler) {
+          if (error.response?.statusCode == 401) {
+            onUnauthorized?.call();
+          }
+          handler.next(error);
+        },
       ),
     );
   }
 
   final Dio _dio;
   final TokenStorage _storage;
+  final void Function()? onUnauthorized;
 
   Never _throwApiError(Object error) {
     if (error is TimeoutException) {
@@ -155,6 +163,11 @@ class RealApiService implements ApiService {
                 status: e['status'] as String? ?? 'open',
                 patientAnonymousId: e['patient_anonymous_id'] as String? ?? '',
                 providerId: e['assigned_provider_id'] as String? ?? '',
+                triageClassification: e['triage_classification'] as String? ?? 'routine',
+                createdAt: DateTime.tryParse(e['created_at'] as String? ?? '') ?? DateTime.now(),
+                lastMessageAt: e['last_message_at'] != null ? DateTime.tryParse(e['last_message_at'] as String) : null,
+                lastMessagePreview: e['last_message_preview'] as String? ?? '',
+                unreadCount: e['unread_count'] as int? ?? 0,
               ))
           .toList();
     } catch (e) {
@@ -196,13 +209,24 @@ class RealApiService implements ApiService {
       final items = (response.data as List<dynamic>? ?? []);
       return items
           .map((e) => Referral(
+                id: e['id'] as String? ?? '',
                 facilityName: e['facility_name'] as String? ?? '',
                 address: e['address'] as String? ?? '',
                 phone: e['phone'] as String? ?? '',
                 notes: e['notes'] as String? ?? '',
                 issuedDate: DateTime.tryParse(e['issued_date'] as String? ?? '') ?? DateTime.now(),
+                status: (e['status'] as String?) == 'viewed' ? ReferralStatus.viewed : ReferralStatus.newReferral,
               ))
           .toList();
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> markReferralViewed(String referralId) async {
+    try {
+      await _dio.put('/api/referrals/$referralId/viewed');
     } catch (e) {
       _throwApiError(e);
     }
@@ -422,13 +446,25 @@ class MockApiService implements ApiService {
   @override
   Future<List<Consultation>> consultations({int page = 1, String? status}) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
+    final triageOptions = ['urgent', 'routine', 'routine', 'self-care'];
+    final previews = [
+      'I have been having chest pain since yesterday.',
+      'The fever has not gone down for 3 days.',
+      'Feeling better but still have a mild cough.',
+      'I ran out of my prescription, need a refill.',
+    ];
     final list = List.generate(
       12,
       (i) => Consultation(
         id: 'CONSULT-${page}_$i',
-        status: i.isEven ? 'open' : 'closed',
+        status: i < 8 ? 'open' : 'closed',
         patientAnonymousId: 'ANON-${2000 + i}',
         providerId: 'PROV-100',
+        triageClassification: triageOptions[i % triageOptions.length],
+        createdAt: DateTime.now().subtract(Duration(hours: (i + 1) * 2)),
+        lastMessageAt: DateTime.now().subtract(Duration(minutes: (i + 1) * 15)),
+        lastMessagePreview: previews[i % previews.length],
+        unreadCount: i.isEven ? (i % 4) : 0,
       ),
     );
     if (status == null) return list;
@@ -469,13 +505,29 @@ class MockApiService implements ApiService {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     return [
       Referral(
+        id: 'REF-001',
         facilityName: 'City Health Center',
         address: '12 Main Road',
         phone: '+266500001',
-        notes: 'Chest x-ray recommended.',
+        notes: 'Chest x-ray recommended. Present this referral at the radiology desk.',
         issuedDate: DateTime.now().subtract(const Duration(days: 1)),
+        status: ReferralStatus.newReferral,
+      ),
+      Referral(
+        id: 'REF-002',
+        facilityName: 'Sunrise Specialist Clinic',
+        address: '45 Hospital Road',
+        phone: '+266500003',
+        notes: 'Follow-up for blood pressure monitoring.',
+        issuedDate: DateTime.now().subtract(const Duration(days: 5)),
+        status: ReferralStatus.viewed,
       ),
     ];
+  }
+
+  @override
+  Future<void> markReferralViewed(String referralId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
   }
 
   @override
@@ -597,7 +649,12 @@ class MockApiService implements ApiService {
 
 final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
 
+final onUnauthorizedProvider = Provider<void Function()>((ref) => () {});
+
 final apiServiceProvider = Provider<ApiService>((ref) {
   final storage = ref.watch(tokenStorageProvider);
-  return AppConfig.useMockApi ? MockApiService(storage) : RealApiService(storage);
+  if (AppConfig.useMockApi) return MockApiService(storage);
+  return RealApiService(storage, onUnauthorized: () {
+    ref.read(tokenStorageProvider).clear();
+  });
 });

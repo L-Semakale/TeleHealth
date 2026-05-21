@@ -43,7 +43,7 @@ class BrandGradientCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.all(1.5),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.94),
+          color: Colors.white.withValues(alpha: 0.94),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Padding(padding: padding, child: child),
