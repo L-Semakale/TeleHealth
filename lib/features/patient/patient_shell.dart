@@ -206,6 +206,9 @@ class _PatientSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
+    final ps = ref.watch(patientControllerProvider);
+    final unreadConsults = ps.consultations.fold<int>(0, (s, c) => s + c.unreadCount);
+    final newReferrals = ps.referrals.where((r) => r.status == ReferralStatus.newReferral).length;
     final initials = user?.fullName.isNotEmpty == true
         ? user!.fullName.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join()
         : 'P';
@@ -268,8 +271,8 @@ class _PatientSidebar extends ConsumerWidget {
           Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: Text('NAVIGATION', style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
           _SidebarItem(icon: Icons.home_rounded, label: 'Dashboard', selected: selectedIndex == 0, onTap: () => onIndexChanged(0)),
           _SidebarItem(icon: Icons.monitor_heart_rounded, label: 'Symptom Report', selected: selectedIndex == 1, onTap: () => onIndexChanged(1)),
-          _SidebarItem(icon: Icons.chat_bubble_rounded, label: 'My Consultations', selected: selectedIndex == 2, onTap: () => onIndexChanged(2)),
-          _SidebarItem(icon: Icons.assignment_rounded, label: 'Referrals', selected: selectedIndex == 3, onTap: () => onIndexChanged(3)),
+          _SidebarItem(icon: Icons.chat_bubble_rounded, label: 'My Consultations', selected: selectedIndex == 2, onTap: () => onIndexChanged(2), badge: unreadConsults > 0 ? unreadConsults : null),
+          _SidebarItem(icon: Icons.assignment_rounded, label: 'Referrals', selected: selectedIndex == 3, onTap: () => onIndexChanged(3), badge: newReferrals > 0 ? newReferrals : null),
           _SidebarItem(icon: Icons.local_hospital_rounded, label: 'Clinic Directory', selected: selectedIndex == 4, onTap: () => onIndexChanged(4)),
           const Spacer(),
           // ── Bottom section ────────────────────────────

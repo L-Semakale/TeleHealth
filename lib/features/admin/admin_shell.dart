@@ -79,43 +79,83 @@ class _AdminShellState extends ConsumerState<AdminShell> {
 class _DashboardHeader extends ConsumerWidget {
   final String title;
   final bool isDesktop;
-
   const _DashboardHeader({required this.title, required this.isDesktop});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authControllerProvider).user;
+    final initials = user?.fullName.isNotEmpty == true
+        ? user!.fullName.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join()
+        : 'AD';
     return Container(
-      height: 80,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+        border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
       ),
-      child: Row(
-        children: [
-          if (!isDesktop) ...[
-            const BrandLogo(size: 32),
-            const SizedBox(width: 16),
+      child: SizedBox(
+        height: 64,
+        child: Row(
+          children: [
+            if (!isDesktop) ...[const BrandLogo(size: 30), const SizedBox(width: 14)],
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A))),
+                Text('Admin Console', style: TextStyle(fontSize: 11, color: Colors.grey[400], fontWeight: FontWeight.w500)),
+              ],
+            ),
+            const Spacer(),
+            if (isDesktop)
+              Container(
+                width: 220, height: 38,
+                margin: const EdgeInsets.only(right: 16),
+                decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey[200]!)),
+                child: Row(children: [
+                  const SizedBox(width: 10),
+                  Icon(Icons.search, size: 16, color: Colors.grey[400]),
+                  const SizedBox(width: 8),
+                  Text('Search users, records…', style: TextStyle(fontSize: 13, color: Colors.grey[400])),
+                ]),
+              ),
+            // Admin mode badge
+            Container(
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.purple.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.purple.withValues(alpha: 0.2)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.shield_outlined, size: 12, color: Colors.purple[700]),
+                const SizedBox(width: 4),
+                Text('ADMIN', style: TextStyle(color: Colors.purple[700], fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
+              ]),
+            ),
+            // Settings icon
+            Container(
+              width: 38, height: 38,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey[200]!)),
+              child: Icon(Icons.settings_outlined, size: 18, color: Colors.grey[600]),
+            ),
+            // Avatar
+            Row(children: [
+              CircleAvatar(
+                radius: 17,
+                backgroundColor: Colors.purple.withValues(alpha: 0.12),
+                child: Text(initials, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple[700])),
+              ),
+              if (isDesktop) ...[const SizedBox(width: 8), Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(user?.fullName.split(' ').first ?? 'Admin', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text('Administrator', style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+              ])],
+            ]),
           ],
-          Text(
-            title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.purple.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              'ADMIN MODE',
-              style: TextStyle(color: Colors.purple, fontSize: 10, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Icon(Icons.settings_outlined),
-        ],
+        ),
       ),
     );
   }
@@ -125,72 +165,90 @@ class _DashboardSidebar extends ConsumerWidget {
   final int selectedIndex;
   final Function(int) onIndexChanged;
   final String role;
-
-  const _DashboardSidebar({
-    required this.selectedIndex,
-    required this.onIndexChanged,
-    required this.role,
-  });
+  const _DashboardSidebar({required this.selectedIndex, required this.onIndexChanged, required this.role});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authControllerProvider).user;
+    final initials = user?.fullName.isNotEmpty == true
+        ? user!.fullName.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join()
+        : 'AD';
     return Container(
-      width: 260,
-      color: const Color(0xFF1A1A1A),
+      width: 272,
+      decoration: const BoxDecoration(
+        color: Color(0xFF111827),
+        border: Border(right: BorderSide(color: Color(0xFF1F2937))),
+      ),
       child: Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.all(24.0),
-            child: BrandLogo(size: 40, lightMode: true),
+          // ── Brand logo area ───────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF1F2937)))),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.purple.shade700, Colors.purple.shade400]),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('TeleHealth', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Admin Console', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+              ]),
+            ]),
           ),
-          const SizedBox(height: 20),
-          _SidebarItem(
-            icon: Icons.dashboard_rounded,
-            label: 'Dashboard',
-            selected: selectedIndex == 0,
-            onTap: () => onIndexChanged(0),
+          // ── Admin user card ───────────────────────────
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F2937),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF374151)),
+            ),
+            child: Row(children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.purple.withValues(alpha: 0.3),
+                child: Text(initials, style: const TextStyle(color: Color(0xFFCE93D8), fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(user?.fullName ?? 'Administrator', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(role, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+              ])),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(color: Colors.purple.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
+                child: const Text('ADMIN', style: TextStyle(color: Color(0xFFCE93D8), fontSize: 9, fontWeight: FontWeight.bold)),
+              ),
+            ]),
           ),
-          _SidebarItem(
-            icon: Icons.people_rounded,
-            label: 'User Management',
-            selected: selectedIndex == 1,
-            onTap: () => onIndexChanged(1),
-          ),
-          _SidebarItem(
-            icon: Icons.list_alt_rounded,
-            label: 'Consultations',
-            selected: selectedIndex == 2,
-            onTap: () => onIndexChanged(2),
-          ),
-          _SidebarItem(
-            icon: Icons.analytics_rounded,
-            label: 'Triage Analytics',
-            selected: selectedIndex == 3,
-            onTap: () => onIndexChanged(3),
-          ),
-          _SidebarItem(
-            icon: Icons.local_hospital_rounded,
-            label: 'Clinic Directory',
-            selected: selectedIndex == 4,
-            onTap: () => onIndexChanged(4),
-          ),
-          _SidebarItem(
-            icon: Icons.health_and_safety_rounded,
-            label: 'System Health',
-            selected: selectedIndex == 5,
-            onTap: () => onIndexChanged(5),
-          ),
+          // ── Navigation ────────────────────────────────
+          Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: Text('NAVIGATION', style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
+          _SidebarItem(icon: Icons.dashboard_rounded, label: 'Dashboard', selected: selectedIndex == 0, onTap: () => onIndexChanged(0), accentColor: Colors.purple.shade700),
+          _SidebarItem(icon: Icons.people_rounded, label: 'User Management', selected: selectedIndex == 1, onTap: () => onIndexChanged(1), accentColor: Colors.purple.shade700),
+          _SidebarItem(icon: Icons.list_alt_rounded, label: 'Consultations', selected: selectedIndex == 2, onTap: () => onIndexChanged(2), accentColor: Colors.purple.shade700),
+          _SidebarItem(icon: Icons.analytics_rounded, label: 'Triage Analytics', selected: selectedIndex == 3, onTap: () => onIndexChanged(3), accentColor: Colors.purple.shade700),
+          _SidebarItem(icon: Icons.local_hospital_rounded, label: 'Clinic Directory', selected: selectedIndex == 4, onTap: () => onIndexChanged(4), accentColor: Colors.purple.shade700),
+          const SizedBox(height: 4),
+          Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 8), child: Text('SYSTEM', style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
+          _SidebarItem(icon: Icons.health_and_safety_rounded, label: 'System Health', selected: selectedIndex == 5, onTap: () => onIndexChanged(5), accentColor: Colors.purple.shade700),
           const Spacer(),
+          // ── Bottom section ────────────────────────────
+          Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: Text('ACCOUNT', style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
           _SidebarItem(
-            icon: Icons.logout_rounded,
-            label: 'Logout',
-            selected: false,
+            icon: Icons.logout_rounded, label: 'Sign Out', selected: false, danger: true,
             onTap: () async {
               await ref.read(authControllerProvider.notifier).logout();
               if (context.mounted) context.go('/login');
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -202,40 +260,37 @@ class _SidebarItem extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-
-  const _SidebarItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+  final bool danger;
+  final Color? accentColor;
+  const _SidebarItem({required this.icon, required this.label, required this.selected, required this.onTap, this.danger = false, this.accentColor});
 
   @override
   Widget build(BuildContext context) {
+    final Color accent = accentColor ?? Colors.purple.shade700;
+    final Color fg = selected ? Colors.white : danger ? Colors.red[400]! : Colors.grey[400]!;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        onTap: onTap, borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFD6246F) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            color: selected ? accent : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Row(
-            children: [
-              Icon(icon, color: selected ? Colors.white : Colors.grey[400], size: 20),
-              const SizedBox(width: 16),
-              Text(
-                label,
-                style: TextStyle(
-                  color: selected ? Colors.white : Colors.grey[400],
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                ),
+          child: Row(children: [
+            Container(
+              width: 3, height: 18,
+              decoration: BoxDecoration(
+                color: selected ? Colors.white.withValues(alpha: 0.5) : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 10),
+            Icon(icon, color: fg, size: 19),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label, style: TextStyle(color: fg, fontWeight: selected ? FontWeight.w600 : FontWeight.w400, fontSize: 13.5))),
+          ]),
         ),
       ),
     );
