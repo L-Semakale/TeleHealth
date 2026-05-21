@@ -94,42 +94,80 @@ class _ProviderHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
+    final initials = user?.fullName.isNotEmpty == true
+        ? user!.fullName.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join()
+        : 'DR';
+    final firstName = user?.fullName.split(' ').first ?? 'Doctor';
     return Container(
-      height: 72,
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Colors.grey[200]!))),
-      child: Row(
-        children: [
-          if (!isDesktop) ...[const BrandLogo(size: 32), const SizedBox(width: 16)],
-          Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const Spacer(),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Semantics(
-                label: 'Notifications',
-                child: IconButton(icon: const Icon(Icons.notifications_none), onPressed: () => _showNotifications(context, ref)),
-              ),
-              if (totalUnread > 0)
-                Positioned(
-                  top: 4, right: 4,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: Color(0xFFD6246F), shape: BoxShape.circle),
-                    child: Text('$totalUnread', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 4),
-          CircleAvatar(
-            backgroundColor: Colors.blue.withAlpha(25),
-            child: Text(
-              user?.fullName.isNotEmpty == true ? user!.fullName.substring(0, 1).toUpperCase() : 'D',
-              style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: SizedBox(
+        height: 64,
+        child: Row(
+          children: [
+            if (!isDesktop) ...[const BrandLogo(size: 30), const SizedBox(width: 14)],
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A))),
+                Text('Provider Portal', style: TextStyle(fontSize: 11, color: Colors.grey[400], fontWeight: FontWeight.w500)),
+              ],
             ),
-          ),
-        ],
+            const Spacer(),
+            if (isDesktop)
+              Container(
+                width: 220, height: 38,
+                margin: const EdgeInsets.only(right: 16),
+                decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey[200]!)),
+                child: Row(children: [
+                  const SizedBox(width: 10),
+                  Icon(Icons.search, size: 16, color: Colors.grey[400]),
+                  const SizedBox(width: 8),
+                  Text('Search consultations…', style: TextStyle(fontSize: 13, color: Colors.grey[400])),
+                ]),
+              ),
+            // Notification bell
+            GestureDetector(
+              onTap: () => _showNotifications(context, ref),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 38, height: 38,
+                    decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey[200]!)),
+                    child: Icon(Icons.notifications_outlined, size: 18, color: Colors.grey[600]),
+                  ),
+                  if (totalUnread > 0)
+                    Positioned(
+                      top: -2, right: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(color: const Color(0xFFD6246F), borderRadius: BorderRadius.circular(8)),
+                        child: Text('$totalUnread', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Row(children: [
+              CircleAvatar(
+                radius: 17,
+                backgroundColor: const Color(0xFF1565C0).withValues(alpha: 0.12),
+                child: Text(initials, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
+              ),
+              if (isDesktop) ...[const SizedBox(width: 8), Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text('Dr. $firstName', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text('Provider', style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+              ])],
+            ]),
+          ],
+        ),
       ),
     );
   }
@@ -175,28 +213,87 @@ class _ProviderSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authControllerProvider).user;
+    final state = ref.watch(providerControllerProvider);
+    final totalUnread = state.consultations.fold<int>(0, (s, c) => s + c.unreadCount);
+    final urgentCount = state.consultations.where((c) => c.triageClassification == 'urgent' && c.status == 'open').length;
+    final initials = user?.fullName.isNotEmpty == true
+        ? user!.fullName.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join()
+        : 'DR';
     return Container(
-      width: 260,
-      color: const Color(0xFF1A1A1A),
+      width: 272,
+      decoration: const BoxDecoration(
+        color: Color(0xFF111827),
+        border: Border(right: BorderSide(color: Color(0xFF1F2937))),
+      ),
       child: Column(
         children: [
-          const Padding(padding: EdgeInsets.all(24), child: BrandLogo(size: 40, lightMode: true)),
-          const SizedBox(height: 20),
-          _SidebarItem(icon: Icons.dashboard_rounded, label: 'Dashboard', selected: selectedIndex == 0, onTap: () => onIndexChanged(0)),
-          _SidebarItem(icon: Icons.medical_services_rounded, label: 'Consultations', selected: selectedIndex == 1, onTap: () => onIndexChanged(1)),
-          _SidebarItem(icon: Icons.chat_rounded, label: 'Messages', selected: selectedIndex == 2, onTap: () => onIndexChanged(2)),
-          _SidebarItem(icon: Icons.assignment_rounded, label: 'Referrals', selected: selectedIndex == 3, onTap: () => onIndexChanged(3)),
-          _SidebarItem(icon: Icons.local_hospital_rounded, label: 'Clinics', selected: selectedIndex == 4, onTap: () => onIndexChanged(4)),
+          // ── Brand logo area ───────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF1F2937)))),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFF1565C0), Color(0xFF5B4AA0)]),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.medical_services_rounded, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('TeleHealth', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Provider Portal', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+              ]),
+            ]),
+          ),
+          // ── User card ─────────────────────────────────
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F2937),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF374151)),
+            ),
+            child: Row(children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFF1565C0).withValues(alpha: 0.3),
+                child: Text(initials, style: const TextStyle(color: Color(0xFF90CAF9), fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(user?.fullName ?? 'Provider', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text('Healthcare Provider', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+              ])),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(color: const Color(0xFF1565C0).withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
+                child: const Text('MD', style: TextStyle(color: Color(0xFF90CAF9), fontSize: 9, fontWeight: FontWeight.bold)),
+              ),
+            ]),
+          ),
+          // ── Navigation ────────────────────────────────
+          Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: Text('NAVIGATION', style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
+          _SidebarItem(icon: Icons.dashboard_rounded, label: 'Dashboard', selected: selectedIndex == 0, onTap: () => onIndexChanged(0), accentColor: const Color(0xFF1565C0)),
+          _SidebarItem(icon: Icons.medical_services_rounded, label: 'Consultations', selected: selectedIndex == 1, onTap: () => onIndexChanged(1), badge: urgentCount > 0 ? urgentCount : null, accentColor: const Color(0xFF1565C0)),
+          _SidebarItem(icon: Icons.chat_rounded, label: 'Messages', selected: selectedIndex == 2, onTap: () => onIndexChanged(2), badge: totalUnread > 0 ? totalUnread : null, accentColor: const Color(0xFF1565C0)),
+          _SidebarItem(icon: Icons.assignment_rounded, label: 'Referrals', selected: selectedIndex == 3, onTap: () => onIndexChanged(3), accentColor: const Color(0xFF1565C0)),
+          _SidebarItem(icon: Icons.local_hospital_rounded, label: 'Clinics', selected: selectedIndex == 4, onTap: () => onIndexChanged(4), accentColor: const Color(0xFF1565C0)),
           const Spacer(),
-          _SidebarItem(icon: Icons.person_rounded, label: 'My Profile', selected: selectedIndex == 5, onTap: () => onIndexChanged(5)),
+          // ── Bottom section ────────────────────────────
+          Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: Text('ACCOUNT', style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
+          _SidebarItem(icon: Icons.person_rounded, label: 'My Profile', selected: selectedIndex == 5, onTap: () => onIndexChanged(5), accentColor: const Color(0xFF1565C0)),
           _SidebarItem(
-            icon: Icons.logout_rounded, label: 'Logout', selected: false,
+            icon: Icons.logout_rounded, label: 'Sign Out', selected: false, danger: true,
             onTap: () async {
               await ref.read(authControllerProvider.notifier).logout();
               if (context.mounted) context.go('/login');
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -208,26 +305,45 @@ class _SidebarItem extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _SidebarItem({required this.icon, required this.label, required this.selected, required this.onTap});
+  final bool danger;
+  final int? badge;
+  final Color? accentColor;
+  const _SidebarItem({required this.icon, required this.label, required this.selected, required this.onTap, this.danger = false, this.badge, this.accentColor});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Semantics(
-        label: label, selected: selected,
+    final Color accent = accentColor ?? const Color(0xFF1565C0);
+    final Color fg = selected ? Colors.white : danger ? Colors.red[400]! : Colors.grey[400]!;
+    return Semantics(
+      label: label, selected: selected,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         child: InkWell(
-          onTap: onTap, borderRadius: BorderRadius.circular(12),
+          onTap: onTap, borderRadius: BorderRadius.circular(10),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
             decoration: BoxDecoration(
-              color: selected ? const Color(0xFFD6246F) : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
+              color: selected ? accent : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Row(children: [
-              Icon(icon, color: selected ? Colors.white : Colors.grey[400], size: 20),
-              const SizedBox(width: 16),
-              Text(label, style: TextStyle(color: selected ? Colors.white : Colors.grey[400], fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+              Container(
+                width: 3, height: 18,
+                decoration: BoxDecoration(
+                  color: selected ? Colors.white.withValues(alpha: 0.5) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(icon, color: fg, size: 19),
+              const SizedBox(width: 12),
+              Expanded(child: Text(label, style: TextStyle(color: fg, fontWeight: selected ? FontWeight.w600 : FontWeight.w400, fontSize: 13.5))),
+              if (badge != null && badge! > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(color: selected ? Colors.white.withValues(alpha: 0.25) : const Color(0xFFD6246F), borderRadius: BorderRadius.circular(10)),
+                  child: Text('$badge', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
             ]),
           ),
         ),
@@ -680,45 +796,108 @@ class _ProviderClinicsScreen extends ConsumerWidget {
 
 class _ProviderProfileScreen extends ConsumerWidget {
   const _ProviderProfileScreen();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
+    final initials = user?.fullName.isNotEmpty == true
+        ? user!.fullName.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join()
+        : 'DR';
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          const CircleAvatar(radius: 50, backgroundColor: Colors.blue, child: Icon(Icons.medical_services, size: 50, color: Colors.white)),
-          const SizedBox(height: 16),
-          Text(user?.fullName ?? 'Provider Name', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const Text('Healthcare Provider', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 32),
-          ListTile(
-            leading: const Icon(Icons.phone),
-            title: const Text('Phone Number'),
-            subtitle: Text(user?.phoneNumber ?? ''),
-          ),
-          const SizedBox(height: 24),
-          TextButton.icon(
-            onPressed: () => _showEditProfile(context, user),
-            icon: const Icon(Icons.edit),
-            label: const Text('Edit Medical Profile'),
-          ),
-          const SizedBox(height: 40),
-          SizedBox(
+          // ── Gradient hero ─────────────────────────────────
+          Container(
             width: double.infinity,
-            height: 54,
-            child: OutlinedButton.icon(
-              onPressed: () async {
-                await ref.read(authControllerProvider.notifier).logout();
-                if (context.mounted) context.go('/login');
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Sign Out'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1565C0), Color(0xFF5B4AA0)],
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
+            ),
+            child: Column(children: [
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  CircleAvatar(
+                    radius: 44,
+                    backgroundColor: Colors.white.withValues(alpha: 0.25),
+                    child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+                  ),
+                  InkWell(
+                    onTap: () => _showEditProfile(context, user),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                      child: const Icon(Icons.edit, size: 14, color: Color(0xFF1565C0)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(user?.fullName ?? 'Provider', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(20)),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.verified_outlined, color: Colors.white, size: 13),
+                  SizedBox(width: 5),
+                  Text('Healthcare Provider', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+              const SizedBox(height: 6),
+              Text(user?.phoneNumber ?? '', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 13)),
+            ]),
+          ),
+          // ── Settings groups ───────────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ProviderSettingsGroup(
+                  label: 'Account',
+                  items: [
+                    _ProviderSettingsTile(icon: Icons.person_outline, title: 'Full Name', value: user?.fullName ?? 'N/A', color: const Color(0xFF1565C0), onTap: () => _showEditProfile(context, user)),
+                    _ProviderSettingsTile(icon: Icons.phone_outlined, title: 'Phone Number', value: user?.phoneNumber ?? 'N/A', color: const Color(0xFF1565C0)),
+                    _ProviderSettingsTile(icon: Icons.security_outlined, title: 'Account Security', value: 'Change Password', color: const Color(0xFF1565C0), onTap: () {}),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _ProviderSettingsGroup(
+                  label: 'Preferences',
+                  items: [
+                    _ProviderSettingsTile(icon: Icons.notifications_outlined, title: 'Notifications', value: 'Enabled', color: const Color(0xFF1565C0), onTap: () {}),
+                    _ProviderSettingsTile(icon: Icons.language_outlined, title: 'Language', value: 'English', color: const Color(0xFF1565C0), onTap: () {}),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity, height: 52,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        title: const Text('Sign Out'),
+                        content: const Text('Are you sure you want to sign out?'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                          FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Sign Out')),
+                        ],
+                      ));
+                      if (confirmed == true) {
+                        await ref.read(authControllerProvider.notifier).logout();
+                        if (context.mounted) context.go('/login');
+                      }
+                    },
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Sign Out'),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -730,14 +909,76 @@ class _ProviderProfileScreen extends ConsumerWidget {
     final name = TextEditingController(text: user?.fullName);
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Edit Provider Profile'),
         content: TextField(controller: name, decoration: const InputDecoration(labelText: 'Full Name')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Save')),
         ],
       ),
+    );
+  }
+}
+
+class _ProviderSettingsGroup extends StatelessWidget {
+  final String label;
+  final List<Widget> items;
+  const _ProviderSettingsGroup({required this.label, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(label.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2)),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[100]!),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 3))],
+          ),
+          child: Column(
+            children: items.map((item) {
+              final idx = items.indexOf(item);
+              return Column(children: [
+                item,
+                if (idx < items.length - 1) Divider(height: 1, indent: 56, endIndent: 16, color: Colors.grey[100]),
+              ]);
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProviderSettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String value;
+  final Color color;
+  final VoidCallback? onTap;
+  const _ProviderSettingsTile({required this.icon, required this.title, required this.value, required this.color, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: color, size: 18),
+      ),
+      title: Text(title, style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w500)),
+      subtitle: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87)),
+      trailing: onTap != null ? const Icon(Icons.chevron_right, size: 18, color: Colors.grey) : null,
+      onTap: onTap,
     );
   }
 }
@@ -749,30 +990,129 @@ class _ProviderDashboard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(providerControllerProvider);
+    final user = ref.watch(authControllerProvider).user;
     final open = state.consultations.where((e) => e.status == 'open').length;
     final urgent = state.consultations.where((e) => e.triageClassification == 'urgent' && e.status == 'open').length;
     final total = state.consultations.length;
+    final completed = total - open;
     final recent = (state.consultations.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt))).take(5).toList();
+    final firstName = user?.fullName.split(' ').first ?? 'Doctor';
+    final initials = user?.fullName.isNotEmpty == true
+        ? user!.fullName.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join()
+        : 'DR';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 16, runSpacing: 16,
-            children: [
-              SizedBox(width: 180, child: _StatCard(title: 'Active Consults', value: '$open', icon: Icons.pending_actions, color: Colors.blue)),
-              SizedBox(width: 180, child: _StatCard(title: 'Urgent Cases', value: '$urgent', icon: Icons.warning_amber_rounded, color: Colors.red)),
-              SizedBox(width: 180, child: _StatCard(title: 'Completed', value: '${total - open}', icon: Icons.check_circle_outline, color: Colors.green)),
-            ],
+          // ── Hero card ─────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1565C0), Color(0xFF5B4AA0)],
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [BoxShadow(color: const Color(0xFF1565C0).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Welcome, Dr. $firstName', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
+                      const SizedBox(height: 4),
+                      Text(
+                        urgent > 0 ? '⚠️ $urgent urgent case${urgent > 1 ? 's' : ''} need attention' : 'All cases are up to date',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(children: [
+                        _DashStatPill(label: '$open', sublabel: 'Open', icon: Icons.pending_actions_outlined),
+                        const SizedBox(width: 10),
+                        _DashStatPill(label: '$urgent', sublabel: 'Urgent', icon: Icons.warning_amber_outlined),
+                        const SizedBox(width: 10),
+                        _DashStatPill(label: '$completed', sublabel: 'Done', icon: Icons.check_circle_outline),
+                      ]),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 28),
-          const Text('Recent Consultations', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          ...recent.map((c) => _ConsultationCard(consultation: c, onOpenChat: onOpenChat)),
+          // ── Stat cards row ────────────────────────────────
+          Row(children: [
+            Expanded(child: _StatCard(title: 'Active', value: '$open', icon: Icons.pending_actions, color: const Color(0xFF1565C0))),
+            const SizedBox(width: 12),
+            Expanded(child: _StatCard(title: 'Urgent', value: '$urgent', icon: Icons.warning_amber_rounded, color: const Color(0xFFE53935))),
+            const SizedBox(width: 12),
+            Expanded(child: _StatCard(title: 'Completed', value: '$completed', icon: Icons.check_circle_outline, color: const Color(0xFF2E7D32))),
+          ]),
+          const SizedBox(height: 28),
+          // ── Recent consultations ──────────────────────────
+          _DashSectionHeader(title: 'Recent Consultations', actionLabel: 'View All'),
+          const SizedBox(height: 14),
+          if (recent.isEmpty)
+            const EmptyView(message: 'No consultations yet.', icon: Icons.inbox_outlined)
+          else
+            ...recent.map((c) => _ConsultationCard(consultation: c, onOpenChat: onOpenChat)),
         ],
       ),
+    );
+  }
+}
+
+class _DashStatPill extends StatelessWidget {
+  final String label;
+  final String sublabel;
+  final IconData icon;
+  const _DashStatPill({required this.label, required this.sublabel, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(10)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: Colors.white, size: 14),
+        const SizedBox(width: 5),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, height: 1.1)),
+          Text(sublabel, style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 9)),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _DashSectionHeader extends StatelessWidget {
+  final String title;
+  final String? actionLabel;
+  const _DashSectionHeader({required this.title, this.actionLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        const Spacer(),
+        if (actionLabel != null)
+          TextButton(
+            onPressed: () {},
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF1565C0), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+            child: Text(actionLabel!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+      ],
     );
   }
 }
