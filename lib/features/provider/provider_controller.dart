@@ -117,6 +117,18 @@ class ProviderController extends StateNotifier<ProviderState> {
       state = state.copyWith(error: e.message);
     }
   }
+
+  Future<Consultation?> initiateConsultation(String patientAnonymousId) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      final c = await _api.initiateConsultation(patientAnonymousId.trim());
+      state = state.copyWith(loading: false, consultations: [c, ...state.consultations]);
+      return c;
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return null;
+    }
+  }
 }
 
 final providerControllerProvider = StateNotifierProvider<ProviderController, ProviderState>((ref) {

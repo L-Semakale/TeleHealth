@@ -32,6 +32,7 @@ abstract class ApiService {
   Future<Facility> updateFacility(Facility facility);
   Future<void> deleteFacility(String facilityId);
   Future<void> markReferralViewed(String referralId);
+  Future<Consultation> initiateConsultation(String patientAnonymousId);
 }
 
 class AppException implements Exception {
@@ -399,6 +400,24 @@ class RealApiService implements ApiService {
       _throwApiError(e);
     }
   }
+
+  @override
+  Future<Consultation> initiateConsultation(String patientAnonymousId) async {
+    try {
+      final response = await _dio.post('/api/consultations', data: {'patient_anonymous_id': patientAnonymousId});
+      final e = response.data as Map<String, dynamic>;
+      return Consultation(
+        id: e['consultation_id'] as String? ?? '',
+        status: e['status'] as String? ?? 'open',
+        patientAnonymousId: e['patient_anonymous_id'] as String? ?? patientAnonymousId,
+        providerId: e['assigned_provider_id'] as String? ?? '',
+        triageClassification: e['triage_classification'] as String? ?? 'routine',
+        createdAt: DateTime.tryParse(e['created_at'] as String? ?? '') ?? DateTime.now(),
+      );
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
 }
 
 class MockApiService implements ApiService {
@@ -645,6 +664,21 @@ class MockApiService implements ApiService {
   Future<void> deleteFacility(String facilityId) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
   }
+
+  @override
+  Future<Consultation> initiateConsultation(String patientAnonymousId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    return Consultation(
+      id: 'CONSULT-NEW-${DateTime.now().millisecondsSinceEpoch}',
+      status: 'open',
+      patientAnonymousId: patientAnonymousId,
+      providerId: 'PROV-100',
+      triageClassification: 'routine',
+      createdAt: DateTime.now(),
+      lastMessagePreview: '',
+      unreadCount: 0,
+    );
+  }
 }
 
 final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
@@ -654,7 +688,8 @@ final onUnauthorizedProvider = Provider<void Function()>((ref) => () {});
 final apiServiceProvider = Provider<ApiService>((ref) {
   final storage = ref.watch(tokenStorageProvider);
   if (AppConfig.useMockApi) return MockApiService(storage);
-  return RealApiService(storage, onUnauthorized: () {
-    ref.read(tokenStorageProvider).clear();
+  return RealApiService(storage, onUnauthorized: () async {
+    await storage.clear();
+    ref.invalidateSelf();
   });
 });

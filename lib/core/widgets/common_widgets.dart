@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
 class LoadingView extends StatelessWidget {
@@ -135,4 +137,53 @@ class _SkeletonLoaderState extends State<SkeletonLoader> with SingleTickerProvid
 
 void showInfoSnack(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
+
+class OfflineBanner extends StatefulWidget {
+  const OfflineBanner({super.key});
+
+  @override
+  State<OfflineBanner> createState() => _OfflineBannerState();
+}
+
+class _OfflineBannerState extends State<OfflineBanner> {
+  bool _offline = false;
+  StreamSubscription<List<ConnectivityResult>>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = Connectivity().onConnectivityChanged.listen((results) {
+      if (!mounted) return;
+      setState(() => _offline = results.contains(ConnectivityResult.none));
+    });
+    Connectivity().checkConnectivity().then((results) {
+      if (!mounted) return;
+      setState(() => _offline = results.contains(ConnectivityResult.none));
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_offline) return const SizedBox.shrink();
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      color: Colors.orange[700],
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.wifi_off, color: Colors.white, size: 16),
+          SizedBox(width: 8),
+          Text('No internet connection — working offline', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
 }

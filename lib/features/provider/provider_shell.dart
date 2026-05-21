@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,8 +6,10 @@ import 'package:intl/intl.dart';
 
 import '../../core/models.dart';
 import '../../core/widgets/brand_logo.dart';
+import '../../core/widgets/brand_styles.dart';
 import '../../core/widgets/common_widgets.dart';
 import '../auth/auth_controller.dart';
+import '../patient/patient_controller.dart';
 import 'provider_controller.dart';
 
 class ProviderShell extends ConsumerStatefulWidget {
@@ -40,6 +43,7 @@ class _ProviderShellState extends ConsumerState<ProviderShell> {
           Expanded(
             child: Column(
               children: [
+                const OfflineBanner(),
                 _ProviderHeader(title: _titles[_index], isDesktop: isDesktop, totalUnread: totalUnread),
                 Expanded(
                   child: AnimatedSwitcher(
@@ -74,7 +78,7 @@ class _ProviderShellState extends ConsumerState<ProviderShell> {
 
   Widget _buildContent() {
     switch (_index) {
-      case 0: return _ProviderDashboard(onOpenChat: _openChat);
+      case 0: return _ProviderDashboard(onOpenChat: _openChat, onViewAllConsultations: () => setState(() => _index = 1));
       case 1: return _ProviderInboxScreen(onOpenChat: _openChat);
       case 2: return _ProviderMessagesScreen(activeChatId: _activeChatId, onBack: () => setState(() { _activeChatId = null; _index = 1; }));
       case 3: return const _ProviderReferralsScreen();
@@ -154,18 +158,21 @@ class _ProviderHeader extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            Row(children: [
-              CircleAvatar(
-                radius: 17,
-                backgroundColor: const Color(0xFF1565C0).withValues(alpha: 0.12),
-                child: Text(initials, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
-              ),
-              if (isDesktop) ...[const SizedBox(width: 8), Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text('Dr. $firstName', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                Text('Provider', style: TextStyle(fontSize: 10, color: Colors.grey[500])),
-              ])],
-            ]),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () => _showProfileMenu(context, ref, user?.fullName ?? 'Doctor', initials, user?.phoneNumber),
+              child: Row(children: [
+                CircleAvatar(
+                  radius: 17,
+                  backgroundColor: const Color(0xFF1565C0).withValues(alpha: 0.12),
+                  child: Text(initials, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
+                ),
+                if (isDesktop) ...[const SizedBox(width: 8), Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text('Dr. $firstName', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  Text('Provider', style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                ]), const SizedBox(width: 4), Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey[400])],
+              ]),
+            ),
           ],
         ),
       ),
@@ -178,30 +185,134 @@ class _ProviderHeader extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Row(children: [
+              const Icon(Icons.notifications_outlined, size: 20),
+              const SizedBox(width: 8),
+              const Text('Notifications', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              if (unread.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFF1565C0), borderRadius: BorderRadius.circular(10)),
+                  child: Text('${unread.length}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+            ]),
             const SizedBox(height: 16),
             if (unread.isEmpty)
-              const Center(child: Text('No new notifications.', style: TextStyle(color: Colors.grey)))
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Column(children: [
+                  Icon(Icons.notifications_none, size: 40, color: Colors.grey[300]),
+                  const SizedBox(height: 8),
+                  Text('No new notifications', style: TextStyle(color: Colors.grey[400])),
+                ])),
+              )
             else
-              ...unread.map((c) => ListTile(
-                leading: const Icon(Icons.chat_bubble_outline, color: Color(0xFFD6246F)),
-                title: Text('New message from ${c.patientAnonymousId}'),
-                subtitle: Text(c.lastMessagePreview.isNotEmpty ? c.lastMessagePreview : 'Tap to view'),
+              ...unread.take(5).map((c) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFF1565C0).withValues(alpha: 0.1),
+                  child: const Icon(Icons.chat_bubble_outline, color: Color(0xFF1565C0), size: 18),
+                ),
+                title: Text('Message from ${c.patientAnonymousId}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: Text(c.lastMessagePreview.isNotEmpty ? c.lastMessagePreview : 'Tap to view', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: const Color(0xFFD6246F), borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: const Color(0xFFD6246F), borderRadius: BorderRadius.circular(10)),
                   child: Text('${c.unreadCount}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
               )),
           ],
         ),
       ),
+    );
+  }
+
+  void _showProfileMenu(BuildContext context, WidgetRef ref, String fullName, String initials, String? phone) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: const Color(0xFF1565C0).withValues(alpha: 0.05), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF1565C0).withValues(alpha: 0.12))),
+              child: Row(children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: const Color(0xFF1565C0).withValues(alpha: 0.15),
+                  child: Text(initials, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
+                ),
+                const SizedBox(width: 12),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Dr. $fullName', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  if (phone != null && phone.isNotEmpty) Text(phone, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(color: const Color(0xFF1565C0).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                    child: const Text('Provider', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
+                  ),
+                ]),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            _MenuTile(icon: Icons.person_outline, label: 'My Profile', accentColor: const Color(0xFF1565C0), onTap: () { Navigator.pop(ctx); }),
+            _MenuTile(icon: Icons.settings_outlined, label: 'Settings', accentColor: const Color(0xFF1565C0), onTap: () { Navigator.pop(ctx); }),
+            _MenuTile(icon: Icons.help_outline, label: 'Help & Support', accentColor: const Color(0xFF1565C0), onTap: () { Navigator.pop(ctx); }),
+            const Divider(height: 24),
+            _MenuTile(
+              icon: Icons.logout_rounded,
+              label: 'Sign Out',
+              color: Colors.red,
+              onTap: () async {
+                Navigator.pop(ctx);
+                await ref.read(authControllerProvider.notifier).logout();
+                if (context.mounted) context.go('/login');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+  final Color? accentColor;
+  const _MenuTile({required this.icon, required this.label, required this.onTap, this.color, this.accentColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? Colors.grey[800]!;
+    final ac = accentColor ?? c;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      leading: Container(
+        width: 36, height: 36,
+        decoration: BoxDecoration(color: ac.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: c, size: 18),
+      ),
+      title: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: c)),
+      trailing: Icon(Icons.chevron_right, size: 18, color: Colors.grey[400]),
+      onTap: onTap,
     );
   }
 }
@@ -362,7 +473,7 @@ class _ProviderInboxScreenState extends ConsumerState<_ProviderInboxScreen> {
   static const _urgencyOrder = {'urgent': 0, 'routine': 1, 'self-care': 2};
 
   List<Consultation> _sorted(List<Consultation> list) {
-    final filtered = _filter == 'all' ? list : list.where((c) => c.triageClassification == _filter || (_filter == 'open' && c.status == 'open') || (_filter == 'closed' && c.status == 'closed')).toList();
+    final filtered = (_filter == 'all' ? list : list.where((c) => c.triageClassification == _filter || (_filter == 'open' && c.status == 'open') || (_filter == 'closed' && c.status == 'closed'))).toList();
     return filtered..sort((a, b) {
       final ua = _urgencyOrder[a.triageClassification] ?? 1;
       final ub = _urgencyOrder[b.triageClassification] ?? 1;
@@ -371,45 +482,135 @@ class _ProviderInboxScreenState extends ConsumerState<_ProviderInboxScreen> {
     });
   }
 
+  void _showStartConsultationDialog(BuildContext context) {
+    final controller = TextEditingController();
+    bool loading = false;
+    String? error;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(children: [
+              Icon(Icons.add_comment_outlined, color: Color(0xFF1565C0)),
+              SizedBox(width: 10),
+              Text('Start Consultation'),
+            ]),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Enter the patient\'s anonymous ID to open a new consultation.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    labelText: 'Patient Anonymous ID',
+                    hintText: 'e.g. ANON-34021',
+                    prefixIcon: const Icon(Icons.person_search_outlined),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey[50],
+                    errorText: error,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1565C0)),
+                onPressed: loading ? null : () async {
+                  final id = controller.text.trim();
+                  if (id.isEmpty) {
+                    setDlg(() => error = 'Please enter a patient ID');
+                    return;
+                  }
+                  setDlg(() { loading = true; error = null; });
+                  final consultation = await ref
+                      .read(providerControllerProvider.notifier)
+                      .initiateConsultation(id);
+                  if (!ctx.mounted) return;
+                  Navigator.pop(ctx);
+                  if (consultation != null) {
+                    widget.onOpenChat(consultation.id);
+                  }
+                },
+                icon: loading
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.send, size: 16),
+                label: Text(loading ? 'Starting...' : 'Start'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(providerControllerProvider);
     if (state.loading && state.consultations.isEmpty) return const LoadingView(message: 'Loading consultations...');
     final sorted = _sorted(state.consultations);
 
-    return Column(
+    return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              for (final f in [('all', 'All'), ('open', 'Open'), ('closed', 'Closed'), ('urgent', 'Urgent'), ('routine', 'Routine')])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(f.$2),
-                    selected: _filter == f.$1,
-                    onSelected: (_) => setState(() => _filter = f.$1),
-                    selectedColor: const Color(0xFFD6246F).withValues(alpha: 0.15),
-                    checkmarkColor: const Color(0xFFD6246F),
+        Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(children: [
+                        for (final f in [('all', 'All'), ('open', 'Open'), ('closed', 'Closed'), ('urgent', 'Urgent'), ('routine', 'Routine')])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: Text(f.$2),
+                              selected: _filter == f.$1,
+                              onSelected: (_) => setState(() => _filter = f.$1),
+                              selectedColor: const Color(0xFF1565C0).withValues(alpha: 0.15),
+                              checkmarkColor: const Color(0xFF1565C0),
+                            ),
+                          ),
+                      ]),
+                    ),
                   ),
-                ),
-            ]),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: sorted.isEmpty
-              ? const EmptyView(message: 'No consultations match this filter.', icon: Icons.inbox_outlined)
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  itemCount: sorted.length,
-                  itemBuilder: (_, i) {
-                    final c = sorted[i];
-                    return _ConsultationCard(consultation: c, onOpenChat: widget.onOpenChat);
-                  },
-                ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: () => _showStartConsultationDialog(context),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF1565C0),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('New', style: TextStyle(fontSize: 13)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: sorted.isEmpty
+                  ? const EmptyView(message: 'No consultations match this filter.', icon: Icons.inbox_outlined)
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                      itemCount: sorted.length,
+                      itemBuilder: (_, i) {
+                        final c = sorted[i];
+                        return _ConsultationCard(consultation: c, onOpenChat: widget.onOpenChat);
+                      },
+                    ),
+            ),
+          ],
         ),
       ],
     );
@@ -535,9 +736,25 @@ class _ProviderMessagesScreen extends ConsumerStatefulWidget {
 class _ProviderMessagesScreenState extends ConsumerState<_ProviderMessagesScreen> {
   final _msgController = TextEditingController();
   final _scrollController = ScrollController();
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.activeChatId;
+    if (id != null) {
+      ref.read(providerControllerProvider.notifier).selectConsultation(id);
+    }
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      final sid = widget.activeChatId ?? ref.read(providerControllerProvider).selectedConsultationId;
+      if (sid != null) ref.read(providerControllerProvider.notifier).selectConsultation(sid);
+    });
+  }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _msgController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -679,6 +896,7 @@ class _ProviderMessagesScreenState extends ConsumerState<_ProviderMessagesScreen
     ref.read(providerControllerProvider.notifier).sendMessage(text);
     _msgController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (_scrollController.hasClients) _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     });
   }
@@ -730,61 +948,253 @@ class _ProviderMessagesScreenState extends ConsumerState<_ProviderMessagesScreen
   }
 }
 
-class _ProviderReferralsScreen extends ConsumerWidget {
+class _ProviderReferralsScreen extends ConsumerStatefulWidget {
   const _ProviderReferralsScreen();
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showIssueReferral(context),
-        backgroundColor: const Color(0xFFD6246F),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-      body: const Center(child: Text('No referrals issued yet.')),
-    );
+  ConsumerState<_ProviderReferralsScreen> createState() => _ProviderReferralsScreenState();
+}
+
+class _ProviderReferralsScreenState extends ConsumerState<_ProviderReferralsScreen> {
+  final List<_IssuedReferral> _issued = [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(providerControllerProvider.notifier).loadConsultations(refresh: true);
+    });
   }
 
   void _showIssueReferral(BuildContext context) {
+    final state = ref.read(providerControllerProvider);
+    final consultations = state.consultations.where((c) => c.status == 'open').toList();
+    String? selectedConsultId;
+    final notesCtrl = TextEditingController();
+    String? error;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Issue New Referral'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const TextField(decoration: InputDecoration(labelText: 'Patient ID')),
-            const TextField(decoration: InputDecoration(labelText: 'Reason for Referral')),
-            const TextField(decoration: InputDecoration(labelText: 'Facility Name')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Issue')),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(children: [
+              Icon(Icons.assignment_outlined, color: Color(0xFFD6246F)),
+              SizedBox(width: 10),
+              Text('Issue Referral'),
+            ]),
+            content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Select an open consultation:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  decoration: InputDecoration(
+                    labelText: 'Consultation',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    filled: true, fillColor: Colors.grey[50],
+                  ),
+                  items: consultations.map((c) => DropdownMenuItem(
+                    value: c.id,
+                    child: Text('${c.patientAnonymousId} — ${c.id.substring(0, 8)}', overflow: TextOverflow.ellipsis),
+                  )).toList(),
+                  onChanged: (v) => setDlg(() => selectedConsultId = v),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: notesCtrl,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'Notes for Patient',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    filled: true, fillColor: Colors.grey[50],
+                  ),
+                ),
+                if (error != null) ...[const SizedBox(height: 8), Text(error!, style: const TextStyle(color: Colors.red, fontSize: 12))],
+              ]),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD6246F)),
+                onPressed: () {
+                  if (selectedConsultId == null) {
+                    setDlg(() => error = 'Please select a consultation');
+                    return;
+                  }
+                  Navigator.pop(ctx);
+                  final consult = consultations.firstWhere((c) => c.id == selectedConsultId!);
+                  ref.read(providerControllerProvider.notifier).issueReferral(
+                    selectedConsultId!, selectedConsultId!, notesCtrl.text.trim());
+                  setState(() {
+                    _issued.add(_IssuedReferral(
+                      patientId: consult.patientAnonymousId,
+                      consultationId: selectedConsultId!,
+                      notes: notesCtrl.text.trim(),
+                      date: DateTime.now(),
+                    ));
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Referral issued successfully.')));
+                },
+                child: const Text('Issue Referral'),
+              ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showIssueReferral(context),
+        backgroundColor: const Color(0xFFD6246F),
+        tooltip: 'Issue Referral',
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: _issued.isEmpty
+          ? const EmptyView(
+              message: 'No referrals issued yet.\nTap + to issue a referral for a patient.',
+              icon: Icons.assignment_outlined,
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 80),
+              itemCount: _issued.length,
+              itemBuilder: (_, i) {
+                final r = _issued[_issued.length - 1 - i];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(padding: const EdgeInsets.all(16), child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: const Color(0xFFD6246F).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
+                        child: const Icon(Icons.assignment_outlined, color: Color(0xFFD6246F), size: 20),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(r.patientId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        const SizedBox(height: 2),
+                        Text('Consult #${r.consultationId.substring(0, 8)}', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                        if (r.notes.isNotEmpty) ...[const SizedBox(height: 4), Text(r.notes, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey[600], fontSize: 13))],
+                      ])),
+                      const SizedBox(width: 10),
+                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                          child: const Text('ISSUED', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('${r.date.day}/${r.date.month}/${r.date.year}', style: TextStyle(color: Colors.grey[400], fontSize: 11)),
+                      ]),
+                    ],
+                  )),
+                );
+              },
+            ),
     );
   }
 }
 
-class _ProviderClinicsScreen extends ConsumerWidget {
+class _IssuedReferral {
+  final String patientId;
+  final String consultationId;
+  final String notes;
+  final DateTime date;
+  const _IssuedReferral({required this.patientId, required this.consultationId, required this.notes, required this.date});
+}
+
+class _ProviderClinicsScreen extends ConsumerStatefulWidget {
   const _ProviderClinicsScreen();
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProviderClinicsScreen> createState() => _ProviderClinicsScreenState();
+}
+
+class _ProviderClinicsScreenState extends ConsumerState<_ProviderClinicsScreen> {
+  final _search = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(patientControllerProvider.notifier).loadFacilities();
+    });
+  }
+
+  @override
+  void dispose() { _search.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(patientControllerProvider);
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
           child: TextField(
+            controller: _search,
             decoration: InputDecoration(
               hintText: 'Search facilities...',
               prefixIcon: const Icon(Icons.search),
+              suffixIcon: _search.text.isNotEmpty
+                  ? IconButton(icon: const Icon(Icons.clear), onPressed: () { _search.clear(); ref.read(patientControllerProvider.notifier).loadFacilities(); setState(() {}); })
+                  : null,
               filled: true,
               fillColor: Colors.grey[50],
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (v) => ref.read(patientControllerProvider.notifier).loadFacilities(search: v),
           ),
         ),
-        const Expanded(child: Center(child: Text('Search for specialized facilities.'))),
+        const SizedBox(height: 8),
+        Expanded(
+          child: state.loading
+              ? const LoadingView(message: 'Searching facilities...')
+              : state.facilities.isEmpty
+                  ? const EmptyView(message: 'No facilities found.', icon: Icons.local_hospital_outlined)
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                      itemCount: state.facilities.length,
+                      itemBuilder: (_, i) {
+                        final f = state.facilities[i];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            leading: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(color: const Color(0xFF1565C0).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
+                              child: const Icon(Icons.local_hospital_outlined, color: Color(0xFF1565C0), size: 20),
+                            ),
+                            title: Text(f.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              const SizedBox(height: 2),
+                              Row(children: [
+                                Icon(Icons.location_on_outlined, size: 12, color: Colors.grey[400]),
+                                const SizedBox(width: 3),
+                                Expanded(child: Text(f.address, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey[500], fontSize: 12))),
+                              ]),
+                              if (f.phone.isNotEmpty)
+                                Row(children: [
+                                  Icon(Icons.phone_outlined, size: 12, color: Colors.grey[400]),
+                                  const SizedBox(width: 3),
+                                  Text(f.phone, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                                ]),
+                            ]),
+                            trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
+                          ),
+                        );
+                      },
+                    ),
+        ),
       ],
     );
   }
@@ -803,6 +1213,7 @@ class _ProviderProfileScreen extends ConsumerWidget {
       child: Column(
         children: [
           // ── Gradient hero ─────────────────────────────────
+          Stack(children: [
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
@@ -847,6 +1258,8 @@ class _ProviderProfileScreen extends ConsumerWidget {
               Text(user?.phoneNumber ?? '', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 13)),
             ]),
           ),
+          const NoiseOverlay(opacity: 0.08),
+          ]),
           // ── Settings groups ───────────────────────────────
           Padding(
             padding: const EdgeInsets.all(20),
@@ -981,7 +1394,8 @@ class _ProviderSettingsTile extends StatelessWidget {
 
 class _ProviderDashboard extends ConsumerWidget {
   final void Function(String) onOpenChat;
-  const _ProviderDashboard({required this.onOpenChat});
+  final VoidCallback? onViewAllConsultations;
+  const _ProviderDashboard({required this.onOpenChat, this.onViewAllConsultations});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1030,6 +1444,7 @@ class _ProviderDashboard extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  const NoiseOverlay(opacity: 0.07, borderRadius: BorderRadius.all(Radius.circular(24))),
                   // ③ Content
                   Padding(
                     padding: const EdgeInsets.all(22),
@@ -1087,7 +1502,7 @@ class _ProviderDashboard extends ConsumerWidget {
           ]),
           const SizedBox(height: 28),
           // ── Recent consultations ──────────────────────────
-          _DashSectionHeader(title: 'Recent Consultations', actionLabel: 'View All'),
+          _DashSectionHeader(title: 'Recent Consultations', actionLabel: 'View All', onAction: onViewAllConsultations),
           const SizedBox(height: 14),
           if (recent.isEmpty)
             const EmptyView(message: 'No consultations yet.', icon: Icons.inbox_outlined)
@@ -1125,7 +1540,8 @@ class _DashStatPill extends StatelessWidget {
 class _DashSectionHeader extends StatelessWidget {
   final String title;
   final String? actionLabel;
-  const _DashSectionHeader({required this.title, this.actionLabel});
+  final VoidCallback? onAction;
+  const _DashSectionHeader({required this.title, this.actionLabel, this.onAction});
 
   @override
   Widget build(BuildContext context) {
@@ -1135,7 +1551,7 @@ class _DashSectionHeader extends StatelessWidget {
         const Spacer(),
         if (actionLabel != null)
           TextButton(
-            onPressed: () {},
+            onPressed: onAction,
             style: TextButton.styleFrom(foregroundColor: const Color(0xFF1565C0), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
             child: Text(actionLabel!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/brand_logo.dart';
+import '../../core/widgets/brand_styles.dart';
 import 'auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -33,7 +34,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       body: _AuthResponsiveLayout(
         isMobile: isMobile,
-        imagePath: 'https://images.unsplash.com/photo-1581056310614-3a4d339304c2?auto=format&fit=crop&q=80&w=1000', // Healthcare Innovation
+        imagePath: 'https://images.unsplash.com/photo-1581056310614-3a4d339304c2?auto=format&fit=crop&q=80&w=1000',
         form: Form(
           key: _formKey,
           child: Column(
@@ -69,7 +70,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 icon: Icons.lock_outlined,
                 obscureText: _obscurePassword,
                 onToggleObscure: () => setState(() => _obscurePassword = !_obscurePassword),
-                validator: (v) => (v == null || v.length < 6) ? 'Password too short' : null,
+                validator: (v) {
+                if (v == null || v.length < 8) return 'Min 8 characters required';
+                if (!RegExp(r'[A-Za-z]').hasMatch(v)) return 'Must contain a letter';
+                if (!RegExp(r'[0-9]').hasMatch(v)) return 'Must contain a number';
+                return null;
+              },
               ),
               const SizedBox(height: 12),
               Align(
@@ -238,7 +244,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return Scaffold(
       body: _AuthResponsiveLayout(
         isMobile: isMobile,
-        imagePath: 'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&q=80&w=1000', // Medical Research/Care
+        imagePath: 'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&q=80&w=1000',
         form: Form(
           key: _formKey,
           child: Column(
@@ -281,7 +287,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 icon: Icons.lock_outlined,
                 obscureText: _obscurePassword,
                 onToggleObscure: () => setState(() => _obscurePassword = !_obscurePassword),
-                validator: (v) => (v == null || v.length < 6) ? 'At least 6 chars' : null,
+                validator: (v) {
+                if (v == null || v.length < 8) return 'Min 8 characters required';
+                if (!RegExp(r'[A-Za-z]').hasMatch(v)) return 'Must contain a letter';
+                if (!RegExp(r'[0-9]').hasMatch(v)) return 'Must contain a number';
+                return null;
+              },
               ),
               const SizedBox(height: 20),
               _buildTextField(
@@ -454,7 +465,7 @@ class _AuthResponsiveLayout extends StatelessWidget {
                 gradient: LinearGradient(
                   colors: [
                     const Color(0xFFD6246F).withValues(alpha: 0.8),
-                    Colors.black.withValues(alpha: 0.4),
+                    Colors.black.withValues(alpha: 0.6),
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
@@ -464,21 +475,33 @@ class _AuthResponsiveLayout extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.end,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'The Future of African Healthcare',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 48,
-                      fontWeight: FontWeight.w900,
-                      height: 1.1,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
                     ),
+                    child: const Icon(Icons.health_and_safety_rounded, color: Colors.white, size: 48),
                   ),
-                  SizedBox(height: 24),
-                  Text(
+                  const SizedBox(height: 32),
+                  const Text(
+                    'The Future of African Healthcare',
+                    style: TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.w900, height: 1.1),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
                     'Empowering patients and providers through digital innovation and local expertise.',
-                    style: TextStyle(color: Colors.white70, fontSize: 18),
+                    style: TextStyle(color: Colors.white70, fontSize: 17, height: 1.6),
                   ),
+                  const SizedBox(height: 40),
+                  Row(children: [
+                    _AuthFeaturePill(icon: Icons.security, label: 'Secure'),
+                    const SizedBox(width: 10),
+                    _AuthFeaturePill(icon: Icons.offline_bolt, label: 'Low-data'),
+                    const SizedBox(width: 10),
+                    _AuthFeaturePill(icon: Icons.people, label: 'Anonymous'),
+                  ]),
                 ],
               ),
             ),
@@ -519,6 +542,29 @@ class _SocialLoginDivider extends StatelessWidget {
         ),
         Expanded(child: Divider(color: Colors.grey[300])),
       ],
+    );
+  }
+}
+
+class _AuthFeaturePill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _AuthFeaturePill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: Colors.white, size: 14),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+      ]),
     );
   }
 }

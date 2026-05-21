@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 const LinearGradient kBrandGradient = LinearGradient(
@@ -16,7 +17,10 @@ AppBar buildBrandAppBar(String title) {
     foregroundColor: Colors.white,
     backgroundColor: Colors.transparent,
     elevation: 0,
-    flexibleSpace: Container(decoration: const BoxDecoration(gradient: kBrandGradient)),
+    flexibleSpace: Stack(children: [
+      Container(decoration: const BoxDecoration(gradient: kBrandGradient)),
+      const NoiseOverlay(opacity: 0.07),
+    ]),
   );
 }
 
@@ -34,7 +38,9 @@ class BrandGradientCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Stack(
+      children: [
+      Container(
       margin: margin,
       decoration: BoxDecoration(
         gradient: kBrandGradient,
@@ -48,6 +54,55 @@ class BrandGradientCard extends StatelessWidget {
         ),
         child: Padding(padding: padding, child: child),
       ),
+      ),
+      NoiseOverlay(opacity: 0.07, borderRadius: BorderRadius.circular(16)),
+      ],
     );
   }
+}
+
+/// Paints a subtle grain/noise texture. Drop this on top of any gradient
+/// using a [Stack]. [opacity] controls grain visibility (0.0–1.0).
+class NoiseOverlay extends StatelessWidget {
+  final double opacity;
+  final BorderRadius? borderRadius;
+  const NoiseOverlay({super.key, this.opacity = 0.06, this.borderRadius});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget painter = RepaintBoundary(
+      child: CustomPaint(
+        painter: _NoisePainter(opacity: opacity),
+        size: Size.infinite,
+      ),
+    );
+    if (borderRadius != null) {
+      painter = ClipRRect(borderRadius: borderRadius!, child: painter);
+    }
+    return Positioned.fill(child: IgnorePointer(child: painter));
+  }
+}
+
+class _NoisePainter extends CustomPainter {
+  final double opacity;
+  _NoisePainter({required this.opacity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rng = math.Random(42);
+    final paint = Paint()..style = PaintingStyle.fill;
+    const int grainCount = 1800;
+    for (int i = 0; i < grainCount; i++) {
+      final x = rng.nextDouble() * size.width;
+      final y = rng.nextDouble() * size.height;
+      final radius = rng.nextDouble() * 0.9 + 0.3;
+      final bright = rng.nextBool();
+      paint.color = (bright ? Colors.white : Colors.black)
+          .withValues(alpha: (rng.nextDouble() * 0.5 + 0.1) * opacity);
+      canvas.drawCircle(Offset(x, y), radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_NoisePainter old) => old.opacity != opacity;
 }
