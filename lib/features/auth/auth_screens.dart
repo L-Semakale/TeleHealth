@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/widgets/common_widgets.dart';
+import '../../core/widgets/brand_logo.dart';
 import 'auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -17,63 +17,178 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  String? _validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Phone number required';
+    final cleaned = value.replaceAll(' ', '');
+    if (cleaned.length < 8 || cleaned.length > 15) return 'Enter a valid phone number';
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
+    final isMobile = MediaQuery.of(context).size.width < 900;
+
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+      body: _AuthResponsiveLayout(
+        isMobile: isMobile,
+        imagePath: 'https://images.unsplash.com/photo-1581056310614-3a4d339304c2?auto=format&fit=crop&q=80&w=1000', // Healthcare Innovation
+        form: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const BrandLogo(size: 48),
+              const SizedBox(height: 32),
+              Text(
+                'Welcome Back',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1A1A1A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Enter your details to access your account.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+              ),
+              const SizedBox(height: 32),
+              _buildTextField(
+                controller: _phoneController,
+                label: 'Phone Number',
+                icon: Icons.phone_outlined,
+                validator: _validatePhone,
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 20),
+              _buildTextField(
+                controller: _passwordController,
+                label: 'Password',
+                icon: Icons.lock_outlined,
+                obscureText: true,
+                validator: (v) => (v == null || v.length < 6) ? 'Password too short' : null,
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => context.go('/forgot-password'),
+                  child: const Text('Forgot Password?'),
+                ),
+              ),
+              const SizedBox(height: 32),
+              if (auth.error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(auth.error!, style: const TextStyle(color: Colors.red)),
+                ),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton(
+                  onPressed: auth.loading
+                      ? null
+                      : () async {
+                          if (!_formKey.currentState!.validate()) return;
+                          final ok = await ref.read(authControllerProvider.notifier).login(
+                                _phoneController.text.trim(),
+                                _passwordController.text.trim(),
+                              );
+                          if (!mounted || !ok) return;
+                          context.go('/home');
+                        },
+                  child: auth.loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Sign In', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const _SocialLoginDivider(),
+              const SizedBox(height: 24),
+              _buildSocialButton(
+                icon: Icons.g_mobiledata,
+                label: 'Sign in with Google',
+                onPressed: () {
+                  // TODO: Implement Google Sign In
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Google Sign-In coming soon!')),
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Telemedicine Login', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _phoneController,
-                    decoration: const InputDecoration(labelText: 'Phone number'),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Phone number required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    validator: (v) => (v == null || v.length < 6) ? 'Password too short' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  if (auth.error != null) Text(auth.error!, style: const TextStyle(color: Colors.red)),
-                  const SizedBox(height: 4),
-                  FilledButton(
-                    onPressed: auth.loading
-                        ? null
-                        : () async {
-                            if (!_formKey.currentState!.validate()) return;
-                            final ok = await ref.read(authControllerProvider.notifier).login(
-                                  _phoneController.text.trim(),
-                                  _passwordController.text.trim(),
-                                );
-                            if (!mounted || !ok) return;
-                            context.go('/home');
-                          },
-                    child: auth.loading ? const CircularProgressIndicator() : const Text('Login'),
-                  ),
+                  const Text("Don't have an account?"),
                   TextButton(
                     onPressed: () => context.go('/register'),
-                    child: const Text('Register as Patient'),
-                  ),
-                  TextButton(
-                    onPressed: () => context.go('/forgot-password'),
-                    child: const Text('Forgot password?'),
+                    child: const Text('Register'),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool obscureText = false,
+    String? Function(String?)? validator,
+    TextInputType? keyboardType,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      validator: validator,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFD6246F), width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.grey[50],
+      ),
+    );
+  }
+
+  Widget _buildSocialButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: BorderSide(color: Colors.grey[300]!),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.black87, size: 28),
+            const SizedBox(width: 12),
+            Text(label, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+          ],
         ),
       ),
     );
@@ -94,82 +209,290 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
 
+  String? _validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Phone number required';
+    final cleaned = value.replaceAll(' ', '');
+    if (cleaned.length < 8 || cleaned.length > 15) return 'Enter a valid phone number';
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
+    final isMobile = MediaQuery.of(context).size.width < 900;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Patient Registration')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                shrinkWrap: true,
+      body: _AuthResponsiveLayout(
+        isMobile: isMobile,
+        imagePath: 'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&q=80&w=1000', // Medical Research/Care
+        form: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const BrandLogo(size: 48),
+              const SizedBox(height: 32),
+              Text(
+                'Create Account',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1A1A1A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Join our platform for digital healthcare innovation.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+              ),
+              const SizedBox(height: 32),
+              _buildTextField(
+                controller: _fullName,
+                label: 'Full Name',
+                icon: Icons.person_outline,
+                validator: (v) => (v == null || v.isEmpty) ? 'Full name required' : null,
+              ),
+              const SizedBox(height: 20),
+              _buildTextField(
+                controller: _phone,
+                label: 'Phone Number',
+                icon: Icons.phone_outlined,
+                validator: _validatePhone,
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 20),
+              _buildTextField(
+                controller: _password,
+                label: 'Password',
+                icon: Icons.lock_outlined,
+                obscureText: true,
+                validator: (v) => (v == null || v.length < 6) ? 'At least 6 chars' : null,
+              ),
+              const SizedBox(height: 20),
+              _buildTextField(
+                controller: _confirmPassword,
+                label: 'Confirm Password',
+                icon: Icons.lock_reset_outlined,
+                obscureText: true,
+                validator: (v) => v != _password.text ? 'Passwords do not match' : null,
+              ),
+              const SizedBox(height: 32),
+              if (auth.error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(auth.error!, style: const TextStyle(color: Colors.red)),
+                ),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton(
+                  onPressed: auth.loading
+                      ? null
+                      : () async {
+                          if (!_formKey.currentState!.validate()) return;
+                          final id = await ref.read(authControllerProvider.notifier).register(
+                                _fullName.text.trim(),
+                                _phone.text.trim(),
+                                _password.text.trim(),
+                              );
+                          if (!mounted || id == null) return;
+                          await _showSuccessDialog(context, id);
+                          if (mounted) context.go('/login');
+                        },
+                  child: auth.loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Create Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  TextFormField(
-                    controller: _fullName,
-                    decoration: const InputDecoration(labelText: 'Full name'),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Full name required' : null,
+                  const Text("Already have an account?"),
+                  TextButton(
+                    onPressed: () => context.go('/login'),
+                    child: const Text('Sign In'),
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _phone,
-                    decoration: const InputDecoration(labelText: 'Phone number'),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Phone number required' : null,
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showSuccessDialog(BuildContext context, String id) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Column(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 64),
+            SizedBox(height: 16),
+            Text('Registration Successful'),
+          ],
+        ),
+        content: Text(
+          'Your anonymous ID is $id.\nPlease save it safely to access your records.',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Continue to Login'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool obscureText = false,
+    String? Function(String?)? validator,
+    TextInputType? keyboardType,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      validator: validator,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFD6246F), width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.grey[50],
+      ),
+    );
+  }
+}
+
+class _AuthResponsiveLayout extends StatelessWidget {
+  final bool isMobile;
+  final String imagePath;
+  final Widget form;
+
+  const _AuthResponsiveLayout({
+    required this.isMobile,
+    required this.imagePath,
+    required this.form,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isMobile) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 450),
+            child: form,
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          flex: 1,
+          child: Container(
+            height: double.infinity,
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: NetworkImage(imagePath),
+                fit: BoxFit.cover,
+              ),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFD6246F).withOpacity(0.8),
+                    Colors.black.withOpacity(0.4),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+              padding: const EdgeInsets.all(60),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'The Future of African Healthcare',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 48,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _password,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    validator: (v) => (v == null || v.length < 6) ? 'At least 6 chars' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _confirmPassword,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Confirm password'),
-                    validator: (v) => v != _password.text ? 'Passwords do not match' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  if (auth.error != null) Text(auth.error!, style: const TextStyle(color: Colors.red)),
-                  FilledButton(
-                    onPressed: auth.loading
-                        ? null
-                        : () async {
-                            if (!_formKey.currentState!.validate()) return;
-                            final id = await ref.read(authControllerProvider.notifier).register(
-                                  _fullName.text.trim(),
-                                  _phone.text.trim(),
-                                  _password.text.trim(),
-                                );
-                            if (!mounted || id == null) return;
-                            await showDialog<void>(
-                              context: context,
-                              builder: (_) => AlertDialog(
-                                title: const Text('Registration successful'),
-                                content: Text('Your anonymous ID is $id.\nPlease save it safely.'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Continue to login'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (mounted) context.go('/login');
-                          },
-                    child: auth.loading ? const CircularProgressIndicator() : const Text('Register'),
+                  SizedBox(height: 24),
+                  Text(
+                    'Empowering patients and providers through digital innovation and local expertise.',
+                    style: TextStyle(color: Colors.white70, fontSize: 18),
                   ),
                 ],
               ),
             ),
           ),
         ),
-      ),
+        Expanded(
+          flex: 1,
+          child: Container(
+            color: Colors.white,
+            height: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 80),
+            child: Center(
+              child: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 450),
+                  child: form,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SocialLoginDivider extends StatelessWidget {
+  const _SocialLoginDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Divider(color: Colors.grey[300])),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text('OR', style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.bold)),
+        ),
+        Expanded(child: Divider(color: Colors.grey[300])),
+      ],
     );
   }
 }
@@ -181,8 +504,32 @@ class ForgotPasswordPlaceholderScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Forgot Password')),
-      body: const EmptyView(
-        message: 'Password reset flow will be available soon. Please contact support.',
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock_reset, size: 80, color: Color(0xFFD6246F)),
+              const SizedBox(height: 24),
+              const Text(
+                'Password Reset',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Password reset flow will be available soon.\nPlease contact support for assistance.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black54),
+              ),
+              const SizedBox(height: 32),
+              FilledButton(
+                onPressed: () => context.go('/login'),
+                child: const Text('Back to Login'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

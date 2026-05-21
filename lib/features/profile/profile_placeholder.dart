@@ -1,0 +1,3 @@
+class ProfilePlaceholder {
+  const ProfilePlaceholder();
+}

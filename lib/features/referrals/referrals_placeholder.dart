@@ -1,0 +1,3 @@
+class ReferralsPlaceholder {
+  const ReferralsPlaceholder();
+}

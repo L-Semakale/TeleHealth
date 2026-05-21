@@ -1,0 +1,3 @@
+class FacilitiesPlaceholder {
+  const FacilitiesPlaceholder();
+}

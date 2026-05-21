@@ -97,3 +97,55 @@ class Referral {
     required this.issuedDate,
   });
 }
+
+class AdminUser {
+  final String id;
+  final String fullName;
+  final String phoneNumber;
+  final String role;
+  final DateTime createdAt;
+  final bool isActive;
+
+  const AdminUser({
+    required this.id,
+    required this.fullName,
+    required this.phoneNumber,
+    required this.role,
+    required this.createdAt,
+    required this.isActive,
+  });
+}
+
+class TriageAnalytics {
+  final int totalReports;
+  final int urgent;
+  final int routine;
+  final int selfCare;
+  final double averageConfidence;
+  final int last7Days;
+
+  const TriageAnalytics({
+    required this.totalReports,
+    required this.urgent,
+    required this.routine,
+    required this.selfCare,
+    required this.averageConfidence,
+    required this.last7Days,
+  });
+}
+
+class SystemHealth {
+  final String apiStatus;
+  final String databaseStatus;
+  final String mlServiceStatus;
+  final String redisStatus;
+  final int uptimeSeconds;
+
+  const SystemHealth({
+    required this.apiStatus,
+    required this.databaseStatus,
+    required this.mlServiceStatus,
+    required this.redisStatus,
+    required this.uptimeSeconds,
+  });
+}

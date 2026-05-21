@@ -21,6 +21,16 @@ abstract class ApiService {
   Future<void> sendMessage(String consultationId, String body);
   Future<List<Referral>> referrals();
   Future<List<Facility>> facilities({String search = ''});
+  Future<void> closeConsultation(String consultationId);
+  Future<void> issueReferral(String consultationId, String facilityId, String notes);
+  Future<List<AdminUser>> adminUsers({int page = 1, int limit = 20});
+  Future<void> assignProviderRole(String userId);
+  Future<void> setUserStatus(String userId, bool isActive);
+  Future<TriageAnalytics> triageAnalytics();
+  Future<SystemHealth> systemHealth();
+  Future<Facility> addFacility(Facility facility);
+  Future<Facility> updateFacility(Facility facility);
+  Future<void> deleteFacility(String facilityId);
 }
 
 class AppException implements Exception {
@@ -136,25 +146,234 @@ class RealApiService implements ApiService {
 
   @override
   Future<List<Consultation>> consultations({int page = 1, String? status}) async {
-    return [];
+    try {
+      final response = await _dio.get('/api/consultations', queryParameters: {'page': page, if (status != null) 'status': status});
+      final items = (response.data as List<dynamic>? ?? []);
+      return items
+          .map((e) => Consultation(
+                id: e['consultation_id'] as String? ?? '',
+                status: e['status'] as String? ?? 'open',
+                patientAnonymousId: e['patient_anonymous_id'] as String? ?? '',
+                providerId: e['assigned_provider_id'] as String? ?? '',
+              ))
+          .toList();
+    } catch (e) {
+      _throwApiError(e);
+    }
   }
 
   @override
   Future<List<ChatMessage>> messages(String consultationId, {int page = 1}) async {
-    return [];
+    try {
+      final response = await _dio.get('/api/consultations/$consultationId/messages', queryParameters: {'page': page});
+      final items = (response.data as List<dynamic>? ?? []);
+      return items
+          .map((e) => ChatMessage(
+                id: e['id'] as String? ?? '',
+                senderRole: e['sender_role'] as String? ?? 'patient',
+                body: e['body'] as String? ?? '',
+                createdAt: DateTime.tryParse(e['created_at'] as String? ?? '') ?? DateTime.now(),
+              ))
+          .toList();
+    } catch (e) {
+      _throwApiError(e);
+    }
   }
 
   @override
-  Future<void> sendMessage(String consultationId, String body) async {}
+  Future<void> sendMessage(String consultationId, String body) async {
+    try {
+      await _dio.post('/api/consultations/$consultationId/messages', data: {'body': body});
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
 
   @override
   Future<List<Referral>> referrals() async {
-    return [];
+    try {
+      final response = await _dio.get('/api/referrals');
+      final items = (response.data as List<dynamic>? ?? []);
+      return items
+          .map((e) => Referral(
+                facilityName: e['facility_name'] as String? ?? '',
+                address: e['address'] as String? ?? '',
+                phone: e['phone'] as String? ?? '',
+                notes: e['notes'] as String? ?? '',
+                issuedDate: DateTime.tryParse(e['issued_date'] as String? ?? '') ?? DateTime.now(),
+              ))
+          .toList();
+    } catch (e) {
+      _throwApiError(e);
+    }
   }
 
   @override
   Future<List<Facility>> facilities({String search = ''}) async {
-    return [];
+    try {
+      final response = await _dio.get('/api/facilities', queryParameters: {'search': search});
+      final items = (response.data as List<dynamic>? ?? []);
+      return items
+          .map((e) => Facility(
+                id: e['id'] as String? ?? '',
+                name: e['name'] as String? ?? '',
+                address: e['address'] as String? ?? '',
+                phone: e['phone'] as String? ?? '',
+                latitude: (e['latitude'] as num?)?.toDouble() ?? 0,
+                longitude: (e['longitude'] as num?)?.toDouble() ?? 0,
+              ))
+          .toList();
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> closeConsultation(String consultationId) async {
+    try {
+      await _dio.put('/api/consultations/$consultationId/close');
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> issueReferral(String consultationId, String facilityId, String notes) async {
+    try {
+      await _dio.post('/api/consultations/$consultationId/referrals', data: {'facility_id': facilityId, 'notes': notes});
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<List<AdminUser>> adminUsers({int page = 1, int limit = 20}) async {
+    try {
+      final response = await _dio.get('/api/admin/users', queryParameters: {'page': page, 'limit': limit});
+      final items = (response.data as List<dynamic>? ?? []);
+      return items
+          .map((e) => AdminUser(
+                id: e['id'] as String? ?? '',
+                fullName: e['full_name'] as String? ?? '',
+                phoneNumber: e['phone_number'] as String? ?? '',
+                role: e['role'] as String? ?? 'patient',
+                createdAt: DateTime.tryParse(e['created_at'] as String? ?? '') ?? DateTime.now(),
+                isActive: e['is_active'] as bool? ?? true,
+              ))
+          .toList();
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> assignProviderRole(String userId) async {
+    try {
+      await _dio.put('/api/admin/users/$userId/role', data: {'role': 'provider'});
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> setUserStatus(String userId, bool isActive) async {
+    try {
+      await _dio.put('/api/admin/users/$userId/status', data: {'is_active': isActive});
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<TriageAnalytics> triageAnalytics() async {
+    try {
+      final response = await _dio.get('/api/admin/analytics/triage');
+      final d = response.data as Map<String, dynamic>;
+      return TriageAnalytics(
+        totalReports: d['total_reports'] as int? ?? 0,
+        urgent: d['urgent'] as int? ?? 0,
+        routine: d['routine'] as int? ?? 0,
+        selfCare: d['self_care'] as int? ?? 0,
+        averageConfidence: (d['average_confidence_score'] as num?)?.toDouble() ?? 0,
+        last7Days: d['last_7_days'] as int? ?? 0,
+      );
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<SystemHealth> systemHealth() async {
+    try {
+      final response = await _dio.get('/api/admin/health');
+      final d = response.data as Map<String, dynamic>;
+      return SystemHealth(
+        apiStatus: d['api_status'] as String? ?? 'unknown',
+        databaseStatus: d['database_status'] as String? ?? 'unknown',
+        mlServiceStatus: d['ml_service_status'] as String? ?? 'unknown',
+        redisStatus: d['redis_status'] as String? ?? 'unknown',
+        uptimeSeconds: d['uptime_seconds'] as int? ?? 0,
+      );
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<Facility> addFacility(Facility facility) async {
+    try {
+      final response = await _dio.post('/api/admin/facilities', data: {
+        'name': facility.name,
+        'address': facility.address,
+        'phone': facility.phone,
+        'latitude': facility.latitude,
+        'longitude': facility.longitude,
+      });
+      final d = response.data as Map<String, dynamic>;
+      return Facility(
+        id: d['id'] as String? ?? '',
+        name: d['name'] as String? ?? facility.name,
+        address: d['address'] as String? ?? facility.address,
+        phone: d['phone'] as String? ?? facility.phone,
+        latitude: (d['latitude'] as num?)?.toDouble() ?? facility.latitude,
+        longitude: (d['longitude'] as num?)?.toDouble() ?? facility.longitude,
+      );
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<Facility> updateFacility(Facility facility) async {
+    try {
+      final response = await _dio.put('/api/admin/facilities/${facility.id}', data: {
+        'name': facility.name,
+        'address': facility.address,
+        'phone': facility.phone,
+        'latitude': facility.latitude,
+        'longitude': facility.longitude,
+      });
+      final d = response.data as Map<String, dynamic>;
+      return Facility(
+        id: d['id'] as String? ?? facility.id,
+        name: d['name'] as String? ?? facility.name,
+        address: d['address'] as String? ?? facility.address,
+        phone: d['phone'] as String? ?? facility.phone,
+        latitude: (d['latitude'] as num?)?.toDouble() ?? facility.latitude,
+        longitude: (d['longitude'] as num?)?.toDouble() ?? facility.longitude,
+      );
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> deleteFacility(String facilityId) async {
+    try {
+      await _dio.delete('/api/admin/facilities/$facilityId');
+    } catch (e) {
+      _throwApiError(e);
+    }
   }
 }
 
@@ -236,6 +455,16 @@ class MockApiService implements ApiService {
   }
 
   @override
+  Future<void> closeConsultation(String consultationId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
+
+  @override
+  Future<void> issueReferral(String consultationId, String facilityId, String notes) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
+
+  @override
   Future<List<Referral>> referrals() async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     return [
@@ -288,6 +517,81 @@ class MockApiService implements ApiService {
       ),
     );
     return filtered;
+  }
+
+  @override
+  Future<List<AdminUser>> adminUsers({int page = 1, int limit = 20}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+    return List.generate(
+      limit,
+      (i) => AdminUser(
+        id: 'USER-${page}_$i',
+        fullName: 'User ${((page - 1) * limit) + i}',
+        phoneNumber: '+2665000${((page - 1) * limit) + i}',
+        role: i % 4 == 0 ? 'provider' : 'patient',
+        createdAt: DateTime.now().subtract(Duration(days: i)),
+        isActive: i.isEven,
+      ),
+    );
+  }
+
+  @override
+  Future<void> assignProviderRole(String userId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  }
+
+  @override
+  Future<void> setUserStatus(String userId, bool isActive) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  }
+
+  @override
+  Future<TriageAnalytics> triageAnalytics() async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    return const TriageAnalytics(
+      totalReports: 8401,
+      urgent: 593,
+      routine: 5302,
+      selfCare: 2506,
+      averageConfidence: 0.81,
+      last7Days: 446,
+    );
+  }
+
+  @override
+  Future<SystemHealth> systemHealth() async {
+    await Future<void>.delayed(const Duration(milliseconds: 320));
+    return const SystemHealth(
+      apiStatus: 'healthy',
+      databaseStatus: 'healthy',
+      mlServiceStatus: 'degraded',
+      redisStatus: 'healthy',
+      uptimeSeconds: 981234,
+    );
+  }
+
+  @override
+  Future<Facility> addFacility(Facility facility) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    return Facility(
+      id: 'FAC-${DateTime.now().millisecondsSinceEpoch}',
+      name: facility.name,
+      address: facility.address,
+      phone: facility.phone,
+      latitude: facility.latitude,
+      longitude: facility.longitude,
+    );
+  }
+
+  @override
+  Future<Facility> updateFacility(Facility facility) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    return facility;
+  }
+
+  @override
+  Future<void> deleteFacility(String facilityId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
   }
 }
 

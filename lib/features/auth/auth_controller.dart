@@ -21,7 +21,9 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._api, this._storage) : super(const AuthState());
+  AuthController(this._api, this._storage) : super(const AuthState()) {
+    hydrate();
+  }
   final ApiService _api;
   final TokenStorage _storage;
 

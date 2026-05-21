@@ -1,0 +1,3 @@
+class ConsultationsPlaceholder {
+  const ConsultationsPlaceholder();
+}

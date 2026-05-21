@@ -50,7 +50,7 @@ class PatientController extends StateNotifier<PatientDataState> {
   static const _offlineSymptomsKey = 'offline_symptom_queue';
   final ApiService _api;
 
-  Future<void> submitSymptoms(
+  Future<TriageResult?> submitSymptoms(
     List<String> symptoms,
     int durationDays,
     String notes,
@@ -60,13 +60,15 @@ class PatientController extends StateNotifier<PatientDataState> {
     if (connectivity.contains(ConnectivityResult.none)) {
       await _queueOfflineSymptoms(symptoms, durationDays, notes);
       state = state.copyWith(loading: false, error: null);
-      return;
+      return null;
     }
     try {
       final triage = await _api.submitSymptoms(symptoms, durationDays, notes);
       state = state.copyWith(loading: false, triage: triage);
+      return triage;
     } on AppException catch (e) {
       state = state.copyWith(loading: false, error: e.message);
+      return null;
     }
   }
 
