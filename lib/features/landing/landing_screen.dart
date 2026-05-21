@@ -19,22 +19,6 @@ class LandingScreen extends StatelessWidget {
             const _FeaturesSection(),
             const _DownloadAppSection(),
             const _FooterSection(),
-            if (AppConfig.useMockApi) ...[
-              Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Quick test accounts',
-                      style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 10),
-                    const _CredentialsGrid(),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),

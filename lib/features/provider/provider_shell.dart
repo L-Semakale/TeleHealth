@@ -233,13 +233,9 @@ class _ProviderSidebar extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
             decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF1F2937)))),
             child: Row(children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF1565C0), Color(0xFF5B4AA0)]),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.medical_services_rounded, color: Colors.white, size: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset('assets/logo.png', width: 38, height: 38, fit: BoxFit.cover),
               ),
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1008,45 +1004,76 @@ class _ProviderDashboard extends ConsumerWidget {
         children: [
           // ── Hero card ─────────────────────────────────────
           Container(
-            padding: const EdgeInsets.all(24),
+            height: 180,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF1565C0), Color(0xFF5B4AA0)],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-              ),
               borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: const Color(0xFF1565C0).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.22), blurRadius: 20, offset: const Offset(0, 8))],
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Welcome, Dr. $firstName', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
-                      const SizedBox(height: 4),
-                      Text(
-                        urgent > 0 ? '⚠️ $urgent urgent case${urgent > 1 ? 's' : ''} need attention' : 'All cases are up to date',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(children: [
-                        _DashStatPill(label: '$open', sublabel: 'Open', icon: Icons.pending_actions_outlined),
-                        const SizedBox(width: 10),
-                        _DashStatPill(label: '$urgent', sublabel: 'Urgent', icon: Icons.warning_amber_outlined),
-                        const SizedBox(width: 10),
-                        _DashStatPill(label: '$completed', sublabel: 'Done', icon: Icons.check_circle_outline),
-                      ]),
-                    ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // ① Banner image — full bleed
+                  Image.asset(
+                    'assets/images/doctor_banner.jpg',
+                    fit: BoxFit.cover,
+                    alignment: Alignment.centerRight,
                   ),
-                ),
-                const SizedBox(width: 16),
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Colors.white.withValues(alpha: 0.2),
-                  child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
-              ],
+                  // ② Gradient scrim — left dark, right transparent
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.black.withValues(alpha: 0.78), Colors.black.withValues(alpha: 0.15)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                    ),
+                  ),
+                  // ③ Content
+                  Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Row(children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.asset('assets/logo.png', width: 30, height: 30, fit: BoxFit.cover),
+                                ),
+                                const SizedBox(width: 8),
+                                Text('Welcome, Dr. $firstName', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
+                              ]),
+                              const SizedBox(height: 6),
+                              Text(
+                                urgent > 0 ? '⚠️ $urgent urgent case${urgent > 1 ? 's' : ''} need attention' : 'All cases are up to date',
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.88), fontSize: 13),
+                              ),
+                              const SizedBox(height: 14),
+                              Row(children: [
+                                _DashStatPill(label: '$open', sublabel: 'Open', icon: Icons.pending_actions_outlined),
+                                const SizedBox(width: 10),
+                                _DashStatPill(label: '$urgent', sublabel: 'Urgent', icon: Icons.warning_amber_outlined),
+                                const SizedBox(width: 10),
+                                _DashStatPill(label: '$completed', sublabel: 'Done', icon: Icons.check_circle_outline),
+                              ]),
+                            ],
+                          ),
+                        ),
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 28),

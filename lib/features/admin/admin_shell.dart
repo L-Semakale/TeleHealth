@@ -186,13 +186,9 @@ class _DashboardSidebar extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
             decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF1F2937)))),
             child: Row(children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [Colors.purple.shade700, Colors.purple.shade400]),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.white, size: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset('assets/logo.png', width: 38, height: 38, fit: BoxFit.cover),
               ),
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

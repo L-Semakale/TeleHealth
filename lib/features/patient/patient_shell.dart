@@ -225,13 +225,9 @@ class _PatientSidebar extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
             decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF1F2937)))),
             child: Row(children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFFD6246F), Color(0xFF8C3B95)]),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.favorite_rounded, color: Colors.white, size: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset('assets/logo.png', width: 38, height: 38, fit: BoxFit.cover),
               ),
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -524,42 +520,71 @@ class PatientHomeScreen extends ConsumerWidget {
         children: [
           // ── Hero welcome card ──────────────────────────────
           Container(
-            padding: const EdgeInsets.all(24),
+            height: 180,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFD6246F), Color(0xFF8C3B95)],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-              ),
               borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: const Color(0xFFD6246F).withValues(alpha: 0.28), blurRadius: 20, offset: const Offset(0, 8))],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.22), blurRadius: 20, offset: const Offset(0, 8))],
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Hello, $firstName 👋', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, height: 1.2)),
-                      const SizedBox(height: 6),
-                      _HeroStatusLine(activeConsults: activeConsults, triage: ps.triage),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          _HeroStatPill(label: '${activeConsults.length}', sublabel: 'Consults', icon: Icons.chat_bubble_outline),
-                          const SizedBox(width: 12),
-                          _HeroStatPill(label: '${newReferrals.length}', sublabel: 'Referrals', icon: Icons.assignment_outlined),
-                        ],
-                      ),
-                    ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // ① Banner image — full bleed
+                  Image.asset(
+                    'assets/images/patient_banner.jpg',
+                    fit: BoxFit.cover,
+                    alignment: Alignment.centerRight,
                   ),
-                ),
-                const SizedBox(width: 16),
-                CircleAvatar(
-                  radius: 34,
-                  backgroundColor: Colors.white.withValues(alpha: 0.2),
-                  child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
-              ],
+                  // ② Gradient scrim — left dark, right transparent
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.black.withValues(alpha: 0.78), Colors.black.withValues(alpha: 0.15)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                    ),
+                  ),
+                  // ③ Content
+                  Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Row(children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.asset('assets/logo.png', width: 30, height: 30, fit: BoxFit.cover),
+                                ),
+                                const SizedBox(width: 8),
+                                Text('Hello, $firstName 👋', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
+                              ]),
+                              const SizedBox(height: 6),
+                              _HeroStatusLine(activeConsults: activeConsults, triage: ps.triage),
+                              const SizedBox(height: 14),
+                              Row(children: [
+                                _HeroStatPill(label: '${activeConsults.length}', sublabel: 'Consults', icon: Icons.chat_bubble_outline),
+                                const SizedBox(width: 10),
+                                _HeroStatPill(label: '${newReferrals.length}', sublabel: 'Referrals', icon: Icons.assignment_outlined),
+                              ]),
+                            ],
+                          ),
+                        ),
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 28),
