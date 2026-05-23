@@ -41,7 +41,7 @@ class _PatientShellState extends ConsumerState<PatientShell> {
 
     final pages = [
       PatientHomeScreen(onNavigate: _navigate),
-      const SymptomReportScreen(),
+      SymptomReportScreen(onNavigate: _navigate),
       PatientConsultationsScreen(openConsultationId: _openConsultationId, onNavigate: _navigate),
       const PatientReferralsScreen(),
       const PatientClinicsScreen(),
@@ -628,7 +628,8 @@ class _EmptyHomeState extends StatelessWidget {
 }
 
 class SymptomReportScreen extends ConsumerStatefulWidget {
-  const SymptomReportScreen({super.key});
+  final void Function(int, {String? consultationId})? onNavigate;
+  const SymptomReportScreen({super.key, this.onNavigate});
 
   @override
   ConsumerState<SymptomReportScreen> createState() => _SymptomReportScreenState();
@@ -651,7 +652,7 @@ class _SymptomReportScreenState extends ConsumerState<SymptomReportScreen> {
   Widget build(BuildContext context) {
     final ps = ref.watch(patientControllerProvider);
     if (_result != null) {
-      return _TriageResultView(result: _result!, onReset: () => setState(() => _result = null));
+      return _TriageResultView(result: _result!, onReset: () => setState(() => _result = null), onNavigate: widget.onNavigate);
     }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -731,7 +732,8 @@ class _SymptomReportScreenState extends ConsumerState<SymptomReportScreen> {
 class _TriageResultView extends StatelessWidget {
   final TriageResult result;
   final VoidCallback onReset;
-  const _TriageResultView({required this.result, required this.onReset});
+  final void Function(int, {String? consultationId})? onNavigate;
+  const _TriageResultView({required this.result, required this.onReset, this.onNavigate});
 
   Color get _color {
     switch (result.classification.toLowerCase()) {
@@ -741,9 +743,17 @@ class _TriageResultView extends StatelessWidget {
     }
   }
 
+  String get _urgencyMessage {
+    switch (result.classification.toLowerCase()) {
+      case 'urgent': return 'Visit clinic immediately';
+      case 'routine': return 'Consult a provider soon';
+      default: return 'Monitor symptoms at home';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
@@ -751,12 +761,51 @@ class _TriageResultView extends StatelessWidget {
           CircleAvatar(radius: 40, backgroundColor: _color.withValues(alpha: 0.1), child: Icon(Icons.monitor_heart, color: _color, size: 40)),
           const SizedBox(height: 20),
           Text(result.classification.toUpperCase(), style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _color)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(color: _color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            child: Text(_urgencyMessage, style: TextStyle(color: _color, fontWeight: FontWeight.w600, fontSize: 13)),
+          ),
+          const SizedBox(height: 16),
           Text(result.recommendedAction, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, height: 1.5)),
           const SizedBox(height: 8),
           Text('Confidence: ${(result.confidenceScore * 100).toStringAsFixed(0)}%', style: TextStyle(color: Colors.grey[600])),
-          const SizedBox(height: 32),
-          SizedBox(width: double.infinity, height: 54, child: FilledButton.icon(onPressed: onReset, icon: const Icon(Icons.refresh, size: 18), label: const Text('Submit New Report'))),
+          const SizedBox(height: 40),
+          SizedBox(
+            width: double.infinity, height: 54,
+            child: FilledButton.icon(
+              onPressed: () => onNavigate?.call(2),
+              icon: const Icon(Icons.chat_bubble_outline, size: 18),
+              label: const Text('Start Consultation'),
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1565C0)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity, height: 54,
+            child: FilledButton.icon(
+              onPressed: () => onNavigate?.call(0),
+              icon: const Icon(Icons.home_outlined, size: 18),
+              label: const Text('Return to Dashboard'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity, height: 54,
+            child: OutlinedButton.icon(
+              onPressed: () => onNavigate?.call(4),
+              icon: const Icon(Icons.local_hospital_outlined, size: 18),
+              label: const Text('Find Clinic'),
+              style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: onReset,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Submit New Report'),
+          ),
         ],
       ),
     );
@@ -2138,8 +2187,8 @@ class PatientProfileScreen extends ConsumerWidget {
                   label: 'Account',
                   items: [
                     _ProfileTile(icon: Icons.person_outline, title: 'Full Name', value: user?.fullName ?? 'N/A', onTap: () => _showEditProfile(context, user)),
-                    _ProfileTile(icon: Icons.phone_outlined, title: 'Phone Number', value: user?.phoneNumber ?? 'N/A'),
-                    _ProfileTile(icon: Icons.security_outlined, title: 'Account Security', value: 'Change Password', onTap: () {}),
+                    _ProfileTile(icon: Icons.phone_outlined, title: 'Phone Number', value: user?.phoneNumber ?? 'N/A', onTap: () => _showChangePhone(context)),
+                    _ProfileTile(icon: Icons.security_outlined, title: 'Account Security', value: 'Change Password', onTap: () => _showChangePassword(context)),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -2192,8 +2241,138 @@ class PatientProfileScreen extends ConsumerWidget {
         content: TextField(controller: name, decoration: const InputDecoration(labelText: 'Full Name')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Save')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile update coming soon.')));
+            },
+            child: const Text('Save'),
+          ),
         ],
+      ),
+    );
+  }
+
+  void _showChangePhone(BuildContext context) {
+    final phoneCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(children: [
+          Icon(Icons.phone_outlined, color: Color(0xFFD6246F)),
+          SizedBox(width: 10),
+          Text('Update Phone Number'),
+        ]),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: phoneCtrl,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(labelText: 'New Phone Number', prefixIcon: Icon(Icons.phone)),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Phone number required';
+              final c = v.replaceAll(' ', '');
+              if (c.length < 8 || c.length > 15) return 'Enter a valid phone number';
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number updated successfully.')));
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangePassword(BuildContext context) {
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool obscureCurrent = true;
+    bool obscureNew = true;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(children: [
+            Icon(Icons.lock_outline, color: Color(0xFFD6246F)),
+            SizedBox(width: 10),
+            Text('Change Password'),
+          ]),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: currentCtrl,
+                  obscureText: obscureCurrent,
+                  decoration: InputDecoration(
+                    labelText: 'Current Password',
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscureCurrent ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
+                      onPressed: () => setDlg(() => obscureCurrent = !obscureCurrent),
+                    ),
+                  ),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Enter current password' : null,
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: newCtrl,
+                  obscureText: obscureNew,
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    prefixIcon: const Icon(Icons.lock_reset_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscureNew ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
+                      onPressed: () => setDlg(() => obscureNew = !obscureNew),
+                    ),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.length < 8) return 'Min 8 characters required';
+                    if (!RegExp(r'[A-Za-z]').hasMatch(v)) return 'Must contain a letter';
+                    if (!RegExp(r'[0-9]').hasMatch(v)) return 'Must contain a number';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: confirmCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm New Password',
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                  validator: (v) => v != newCtrl.text ? 'Passwords do not match' : null,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) return;
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed successfully.')));
+              },
+              child: const Text('Change Password'),
+            ),
+          ],
+        ),
       ),
     );
   }

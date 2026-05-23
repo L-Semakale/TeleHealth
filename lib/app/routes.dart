@@ -8,13 +8,15 @@ import '../features/auth/auth_screens.dart';
 import '../features/landing/landing_screen.dart';
 import '../features/patient/patient_shell.dart';
 import '../features/provider/provider_shell.dart';
+import '../features/splash/splash_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
   final user = auth.user;
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/splash',
     routes: [
+      GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/', builder: (_, __) => const LandingScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
@@ -36,8 +38,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
     redirect: (_, state) {
       final path = state.uri.path;
-      final isPublicRoute = path == '/' || path == '/login' || path == '/register' || path == '/forgot-password';
+      final isPublicRoute = path == '/splash' || path == '/' || path == '/login' || path == '/register' || path == '/forgot-password';
       if (user == null) return isPublicRoute ? null : '/login';
+      if (path == '/splash') return null;
       if (isPublicRoute) return '/home';
       return null;
     },
