@@ -28,11 +28,13 @@ class TriageResult {
   final String classification;
   final double confidenceScore;
   final String recommendedAction;
+  final String? reportId;
 
   const TriageResult({
     required this.classification,
     required this.confidenceScore,
     required this.recommendedAction,
+    this.reportId,
   });
 }
 

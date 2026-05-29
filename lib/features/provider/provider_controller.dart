@@ -52,7 +52,9 @@ class ProviderState {
 }
 
 class ProviderController extends StateNotifier<ProviderState> {
-  ProviderController(this._api) : super(const ProviderState());
+  ProviderController(this._api) : super(const ProviderState()) {
+    loadConsultations(refresh: true);
+  }
   final ApiService _api;
 
   Future<void> loadConsultations({bool refresh = false, String? status}) async {
@@ -118,15 +120,22 @@ class ProviderController extends StateNotifier<ProviderState> {
     }
   }
 
-  Future<Consultation?> initiateConsultation(String patientAnonymousId) async {
-    state = state.copyWith(loading: true, error: null);
+  Future<void> updateProfile({
+    String? fullName,
+    String? phoneNumber,
+    String? currentPassword,
+    String? newPassword,
+  }) async {
     try {
-      final c = await _api.initiateConsultation(patientAnonymousId.trim());
-      state = state.copyWith(loading: false, consultations: [c, ...state.consultations]);
-      return c;
+      await _api.updateProfile(
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
     } on AppException catch (e) {
-      state = state.copyWith(loading: false, error: e.message);
-      return null;
+      state = state.copyWith(error: e.message);
+      rethrow;
     }
   }
 }

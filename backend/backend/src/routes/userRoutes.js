@@ -6,6 +6,30 @@ import { throwError } from "../utils/errors.js";
 
 const router = express.Router();
 
+router.get(
+  "/profile",
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        fullName: true,
+        phoneNumber: true,
+        role: true,
+        anonymousId: true,
+        createdAt: true
+      }
+    });
+    res.status(200).json({
+      full_name: user.fullName,
+      phone_number: user.phoneNumber,
+      role: user.role,
+      anonymous_id: user.anonymousId,
+      created_at: user.createdAt
+    });
+  })
+);
+
 router.put(
   "/profile",
   asyncHandler(async (req, res) => {

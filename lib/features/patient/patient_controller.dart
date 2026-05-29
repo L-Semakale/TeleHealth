@@ -12,6 +12,7 @@ class PatientDataState {
   final bool loading;
   final String? error;
   final TriageResult? triage;
+  final String? lastReportId;
   final List<Consultation> consultations;
   final List<Referral> referrals;
   final List<Facility> facilities;
@@ -20,6 +21,7 @@ class PatientDataState {
     this.loading = false,
     this.error,
     this.triage,
+    this.lastReportId,
     this.consultations = const [],
     this.referrals = const [],
     this.facilities = const [],
@@ -29,6 +31,7 @@ class PatientDataState {
     bool? loading,
     String? error,
     TriageResult? triage,
+    String? lastReportId,
     List<Consultation>? consultations,
     List<Referral>? referrals,
     List<Facility>? facilities,
@@ -37,6 +40,7 @@ class PatientDataState {
       loading: loading ?? this.loading,
       error: error,
       triage: triage ?? this.triage,
+      lastReportId: lastReportId ?? this.lastReportId,
       consultations: consultations ?? this.consultations,
       referrals: referrals ?? this.referrals,
       facilities: facilities ?? this.facilities,
@@ -75,7 +79,11 @@ class PatientController extends StateNotifier<PatientDataState> {
     }
     try {
       final triage = await _api.submitSymptoms(symptoms, durationDays, notes);
-      state = state.copyWith(loading: false, triage: triage);
+      state = state.copyWith(
+        loading: false,
+        triage: triage,
+        lastReportId: triage.reportId,
+      );
       return triage;
     } on AppException catch (e) {
       state = state.copyWith(loading: false, error: e.message);
@@ -171,6 +179,42 @@ class PatientController extends StateNotifier<PatientDataState> {
 
   Future<void> sendMessage(String consultationId, String body) async {
     await _api.sendMessage(consultationId, body);
+  }
+
+  Future<Consultation?> startConsultation({String? reportId}) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      final consultation = await _api.startConsultation(
+        reportId: reportId ?? state.lastReportId,
+      );
+      state = state.copyWith(
+        loading: false,
+        consultations: [consultation, ...state.consultations],
+      );
+      return consultation;
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return null;
+    }
+  }
+
+  Future<void> updateProfile({
+    String? fullName,
+    String? phoneNumber,
+    String? currentPassword,
+    String? newPassword,
+  }) async {
+    try {
+      await _api.updateProfile(
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+    } on AppException catch (e) {
+      state = state.copyWith(error: e.message);
+      rethrow;
+    }
   }
 
   Future<void> markReferralViewed(String referralId) async {

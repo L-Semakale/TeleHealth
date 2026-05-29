@@ -11,16 +11,17 @@ router.post(
   "/",
   asyncHandler(async (req, res) => {
     const { symptoms, duration_days, additional_notes } = req.body;
+    const symptomList = Array.isArray(symptoms) ? symptoms : [];
     const report = await prisma.symptomReport.create({
       data: {
         userId: req.user.id,
-        symptoms,
-        durationDays: duration_days,
+        symptoms: JSON.stringify(symptomList),
+        durationDays: Number(duration_days) || 0,
         additionalNotes: additional_notes
       }
     });
 
-    const prediction = await predictTriage({ symptoms, duration_days });
+    const prediction = await predictTriage({ symptoms: symptomList, duration_days });
     const triage = await prisma.triageResult.create({
       data: {
         reportId: report.id,

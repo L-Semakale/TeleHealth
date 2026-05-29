@@ -32,7 +32,14 @@ abstract class ApiService {
   Future<Facility> updateFacility(Facility facility);
   Future<void> deleteFacility(String facilityId);
   Future<void> markReferralViewed(String referralId);
-  Future<Consultation> initiateConsultation(String patientAnonymousId);
+  Future<Consultation> startConsultation({String? reportId});
+  Future<void> updateProfile({
+    String? fullName,
+    String? phoneNumber,
+    String? currentPassword,
+    String? newPassword,
+  });
+  Future<List<Consultation>> adminConsultations({String? status});
 }
 
 class AppException implements Exception {
@@ -73,6 +80,91 @@ class RealApiService implements ApiService {
   final Dio _dio;
   final TokenStorage _storage;
   final void Function()? onUnauthorized;
+
+  List<Consultation> _mapConsultations(dynamic data) {
+    final items = data is Map<String, dynamic>
+        ? (data['consultations'] as List<dynamic>? ?? [])
+        : (data as List<dynamic>? ?? []);
+    return items.map(_mapConsultation).toList();
+  }
+
+  Consultation _mapConsultation(dynamic e) {
+    final m = e as Map<String, dynamic>;
+    final created = m['created_at'] ?? m['started_at'];
+    return Consultation(
+      id: m['consultation_id'] as String? ?? '',
+      status: m['status'] as String? ?? 'open',
+      patientAnonymousId: m['patient_anonymous_id'] as String? ?? '',
+      providerId: m['assigned_provider_id'] as String? ?? m['provider_id'] as String? ?? '',
+      triageClassification: m['triage_classification'] as String? ?? 'routine',
+      createdAt: DateTime.tryParse(created?.toString() ?? '') ?? DateTime.now(),
+      lastMessageAt: m['last_message_at'] != null
+          ? DateTime.tryParse(m['last_message_at'].toString())
+          : null,
+      lastMessagePreview: m['last_message_preview'] as String? ?? '',
+      unreadCount: m['unread_count'] as int? ?? 0,
+    );
+  }
+
+  List<ChatMessage> _mapMessages(dynamic data) {
+    final items = data is Map<String, dynamic>
+        ? (data['messages'] as List<dynamic>? ?? [])
+        : (data as List<dynamic>? ?? []);
+    return items
+        .map((e) {
+          final m = e as Map<String, dynamic>;
+          final sent = m['sent_at'] ?? m['created_at'];
+          return ChatMessage(
+            id: m['id'] as String? ?? m['message_id'] as String? ?? '',
+            senderRole: m['sender_role'] as String? ?? 'patient',
+            body: m['body'] as String? ?? '',
+            createdAt: DateTime.tryParse(sent?.toString() ?? '') ?? DateTime.now(),
+          );
+        })
+        .toList();
+  }
+
+  List<Referral> _mapReferrals(dynamic data) {
+    final items = data is Map<String, dynamic>
+        ? (data['referrals'] as List<dynamic>? ?? [])
+        : (data as List<dynamic>? ?? []);
+    return items
+        .map((e) {
+          final m = e as Map<String, dynamic>;
+          final issued = m['issued_at'] ?? m['issued_date'];
+          return Referral(
+            id: m['id'] as String? ?? m['referral_id'] as String? ?? '',
+            facilityName: m['facility_name'] as String? ?? '',
+            address: m['address'] as String? ?? m['facility_address'] as String? ?? '',
+            phone: m['phone'] as String? ?? m['facility_phone'] as String? ?? '',
+            notes: m['notes'] as String? ?? '',
+            issuedDate: DateTime.tryParse(issued?.toString() ?? '') ?? DateTime.now(),
+            status: (m['status'] as String?) == 'viewed'
+                ? ReferralStatus.viewed
+                : ReferralStatus.newReferral,
+          );
+        })
+        .toList();
+  }
+
+  List<Facility> _mapFacilities(dynamic data) {
+    final items = data is Map<String, dynamic>
+        ? (data['facilities'] as List<dynamic>? ?? [])
+        : (data as List<dynamic>? ?? []);
+    return items
+        .map((e) {
+          final m = e as Map<String, dynamic>;
+          return Facility(
+            id: m['id'] as String? ?? m['facility_id'] as String? ?? '',
+            name: m['name'] as String? ?? '',
+            address: m['address'] as String? ?? '',
+            phone: m['phone'] as String? ?? '',
+            latitude: (m['latitude'] as num?)?.toDouble() ?? 0,
+            longitude: (m['longitude'] as num?)?.toDouble() ?? 0,
+          );
+        })
+        .toList();
+  }
 
   Never _throwApiError(Object error) {
     if (error is TimeoutException) {
@@ -147,6 +239,7 @@ class RealApiService implements ApiService {
         classification: triage['classification'] as String? ?? 'routine',
         confidenceScore: (triage['confidence_score'] as num?)?.toDouble() ?? 0,
         recommendedAction: triage['recommended_action'] as String? ?? '',
+        reportId: response.data['report_id'] as String?,
       );
     } catch (e) {
       _throwApiError(e);
@@ -156,21 +249,11 @@ class RealApiService implements ApiService {
   @override
   Future<List<Consultation>> consultations({int page = 1, String? status}) async {
     try {
-      final response = await _dio.get('/api/consultations', queryParameters: {'page': page, if (status != null) 'status': status});
-      final items = (response.data as List<dynamic>? ?? []);
-      return items
-          .map((e) => Consultation(
-                id: e['consultation_id'] as String? ?? '',
-                status: e['status'] as String? ?? 'open',
-                patientAnonymousId: e['patient_anonymous_id'] as String? ?? '',
-                providerId: e['assigned_provider_id'] as String? ?? '',
-                triageClassification: e['triage_classification'] as String? ?? 'routine',
-                createdAt: DateTime.tryParse(e['created_at'] as String? ?? '') ?? DateTime.now(),
-                lastMessageAt: e['last_message_at'] != null ? DateTime.tryParse(e['last_message_at'] as String) : null,
-                lastMessagePreview: e['last_message_preview'] as String? ?? '',
-                unreadCount: e['unread_count'] as int? ?? 0,
-              ))
-          .toList();
+      final response = await _dio.get('/api/consultations', queryParameters: {
+        'page': page,
+        if (status != null) 'status': status,
+      });
+      return _mapConsultations(response.data);
     } catch (e) {
       _throwApiError(e);
     }
@@ -179,16 +262,11 @@ class RealApiService implements ApiService {
   @override
   Future<List<ChatMessage>> messages(String consultationId, {int page = 1}) async {
     try {
-      final response = await _dio.get('/api/consultations/$consultationId/messages', queryParameters: {'page': page});
-      final items = (response.data as List<dynamic>? ?? []);
-      return items
-          .map((e) => ChatMessage(
-                id: e['id'] as String? ?? '',
-                senderRole: e['sender_role'] as String? ?? 'patient',
-                body: e['body'] as String? ?? '',
-                createdAt: DateTime.tryParse(e['created_at'] as String? ?? '') ?? DateTime.now(),
-              ))
-          .toList();
+      final response = await _dio.get(
+        '/api/consultations/$consultationId/messages',
+        queryParameters: {'page': page},
+      );
+      return _mapMessages(response.data);
     } catch (e) {
       _throwApiError(e);
     }
@@ -207,18 +285,7 @@ class RealApiService implements ApiService {
   Future<List<Referral>> referrals() async {
     try {
       final response = await _dio.get('/api/referrals');
-      final items = (response.data as List<dynamic>? ?? []);
-      return items
-          .map((e) => Referral(
-                id: e['id'] as String? ?? '',
-                facilityName: e['facility_name'] as String? ?? '',
-                address: e['address'] as String? ?? '',
-                phone: e['phone'] as String? ?? '',
-                notes: e['notes'] as String? ?? '',
-                issuedDate: DateTime.tryParse(e['issued_date'] as String? ?? '') ?? DateTime.now(),
-                status: (e['status'] as String?) == 'viewed' ? ReferralStatus.viewed : ReferralStatus.newReferral,
-              ))
-          .toList();
+      return _mapReferrals(response.data);
     } catch (e) {
       _throwApiError(e);
     }
@@ -237,17 +304,7 @@ class RealApiService implements ApiService {
   Future<List<Facility>> facilities({String search = ''}) async {
     try {
       final response = await _dio.get('/api/facilities', queryParameters: {'search': search});
-      final items = (response.data as List<dynamic>? ?? []);
-      return items
-          .map((e) => Facility(
-                id: e['id'] as String? ?? '',
-                name: e['name'] as String? ?? '',
-                address: e['address'] as String? ?? '',
-                phone: e['phone'] as String? ?? '',
-                latitude: (e['latitude'] as num?)?.toDouble() ?? 0,
-                longitude: (e['longitude'] as num?)?.toDouble() ?? 0,
-              ))
-          .toList();
+      return _mapFacilities(response.data);
     } catch (e) {
       _throwApiError(e);
     }
@@ -275,16 +332,19 @@ class RealApiService implements ApiService {
   Future<List<AdminUser>> adminUsers({int page = 1, int limit = 20}) async {
     try {
       final response = await _dio.get('/api/admin/users', queryParameters: {'page': page, 'limit': limit});
-      final items = (response.data as List<dynamic>? ?? []);
+      final items = (response.data['users'] as List<dynamic>? ?? []);
       return items
-          .map((e) => AdminUser(
-                id: e['id'] as String? ?? '',
-                fullName: e['full_name'] as String? ?? '',
-                phoneNumber: e['phone_number'] as String? ?? '',
-                role: e['role'] as String? ?? 'patient',
-                createdAt: DateTime.tryParse(e['created_at'] as String? ?? '') ?? DateTime.now(),
-                isActive: e['is_active'] as bool? ?? true,
-              ))
+          .map((e) {
+            final m = e as Map<String, dynamic>;
+            return AdminUser(
+              id: m['id'] as String? ?? m['user_id'] as String? ?? '',
+              fullName: m['full_name'] as String? ?? '',
+              phoneNumber: m['phone_number'] as String? ?? '',
+              role: m['role'] as String? ?? 'patient',
+              createdAt: DateTime.tryParse(m['created_at']?.toString() ?? '') ?? DateTime.now(),
+              isActive: m['is_active'] as bool? ?? true,
+            );
+          })
           .toList();
     } catch (e) {
       _throwApiError(e);
@@ -314,13 +374,14 @@ class RealApiService implements ApiService {
     try {
       final response = await _dio.get('/api/admin/analytics/triage');
       final d = response.data as Map<String, dynamic>;
+      final byClass = d['by_classification'] as Map<String, dynamic>? ?? {};
       return TriageAnalytics(
         totalReports: d['total_reports'] as int? ?? 0,
-        urgent: d['urgent'] as int? ?? 0,
-        routine: d['routine'] as int? ?? 0,
-        selfCare: d['self_care'] as int? ?? 0,
+        urgent: (byClass['urgent'] as num?)?.toInt() ?? (d['urgent'] as int? ?? 0),
+        routine: (byClass['routine'] as num?)?.toInt() ?? (d['routine'] as int? ?? 0),
+        selfCare: (byClass['self-care'] as num?)?.toInt() ?? (d['self_care'] as int? ?? 0),
         averageConfidence: (d['average_confidence_score'] as num?)?.toDouble() ?? 0,
-        last7Days: d['last_7_days'] as int? ?? 0,
+        last7Days: d['reports_last_7_days'] as int? ?? d['last_7_days'] as int? ?? 0,
       );
     } catch (e) {
       _throwApiError(e);
@@ -356,7 +417,7 @@ class RealApiService implements ApiService {
       });
       final d = response.data as Map<String, dynamic>;
       return Facility(
-        id: d['id'] as String? ?? '',
+        id: d['id'] as String? ?? d['facility_id'] as String? ?? '',
         name: d['name'] as String? ?? facility.name,
         address: d['address'] as String? ?? facility.address,
         phone: d['phone'] as String? ?? facility.phone,
@@ -402,18 +463,44 @@ class RealApiService implements ApiService {
   }
 
   @override
-  Future<Consultation> initiateConsultation(String patientAnonymousId) async {
+  Future<Consultation> startConsultation({String? reportId}) async {
     try {
-      final response = await _dio.post('/api/consultations', data: {'patient_anonymous_id': patientAnonymousId});
-      final e = response.data as Map<String, dynamic>;
-      return Consultation(
-        id: e['consultation_id'] as String? ?? '',
-        status: e['status'] as String? ?? 'open',
-        patientAnonymousId: e['patient_anonymous_id'] as String? ?? patientAnonymousId,
-        providerId: e['assigned_provider_id'] as String? ?? '',
-        triageClassification: e['triage_classification'] as String? ?? 'routine',
-        createdAt: DateTime.tryParse(e['created_at'] as String? ?? '') ?? DateTime.now(),
+      final response = await _dio.post('/api/consultations', data: {
+        if (reportId != null) 'report_id': reportId,
+      });
+      return _mapConsultation(response.data);
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> updateProfile({
+    String? fullName,
+    String? phoneNumber,
+    String? currentPassword,
+    String? newPassword,
+  }) async {
+    try {
+      await _dio.put('/api/users/profile', data: {
+        if (fullName != null) 'full_name': fullName,
+        if (phoneNumber != null) 'phone_number': phoneNumber,
+        if (currentPassword != null) 'current_password': currentPassword,
+        if (newPassword != null) 'new_password': newPassword,
+      });
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<List<Consultation>> adminConsultations({String? status}) async {
+    try {
+      final response = await _dio.get(
+        '/api/admin/consultations',
+        queryParameters: {if (status != null) 'status': status},
       );
+      return _mapConsultations(response.data);
     } catch (e) {
       _throwApiError(e);
     }
@@ -666,18 +753,33 @@ class MockApiService implements ApiService {
   }
 
   @override
-  Future<Consultation> initiateConsultation(String patientAnonymousId) async {
+  Future<Consultation> startConsultation({String? reportId}) async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     return Consultation(
       id: 'CONSULT-NEW-${DateTime.now().millisecondsSinceEpoch}',
       status: 'open',
-      patientAnonymousId: patientAnonymousId,
+      patientAnonymousId: 'ANON-34021',
       providerId: 'PROV-100',
       triageClassification: 'routine',
       createdAt: DateTime.now(),
       lastMessagePreview: '',
       unreadCount: 0,
     );
+  }
+
+  @override
+  Future<void> updateProfile({
+    String? fullName,
+    String? phoneNumber,
+    String? currentPassword,
+    String? newPassword,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  }
+
+  @override
+  Future<List<Consultation>> adminConsultations({String? status}) async {
+    return consultations(status: status);
   }
 }
 

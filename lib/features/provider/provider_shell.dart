@@ -482,72 +482,10 @@ class _ProviderInboxScreenState extends ConsumerState<_ProviderInboxScreen> {
     });
   }
 
-  void _showStartConsultationDialog(BuildContext context) {
-    final controller = TextEditingController();
-    bool loading = false;
-    String? error;
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Row(children: [
-              Icon(Icons.add_comment_outlined, color: Color(0xFF1565C0)),
-              SizedBox(width: 10),
-              Text('Start Consultation'),
-            ]),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Enter the patient\'s anonymous ID to open a new consultation.', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: InputDecoration(
-                    labelText: 'Patient Anonymous ID',
-                    hintText: 'e.g. ANON-34021',
-                    prefixIcon: const Icon(Icons.person_search_outlined),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                    errorText: error,
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1565C0)),
-                onPressed: loading ? null : () async {
-                  final id = controller.text.trim();
-                  if (id.isEmpty) {
-                    setDlg(() => error = 'Please enter a patient ID');
-                    return;
-                  }
-                  setDlg(() { loading = true; error = null; });
-                  final consultation = await ref
-                      .read(providerControllerProvider.notifier)
-                      .initiateConsultation(id);
-                  if (!ctx.mounted) return;
-                  Navigator.pop(ctx);
-                  if (consultation != null) {
-                    widget.onOpenChat(consultation.id);
-                  }
-                },
-                icon: loading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.send, size: 16),
-                label: Text(loading ? 'Starting...' : 'Start'),
-              ),
-            ],
-          );
-        },
-      ),
+  void _refreshConsultations(BuildContext context) {
+    ref.read(providerControllerProvider.notifier).loadConsultations(refresh: true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Consultations refreshed. Patients start new chats from their app.')),
     );
   }
 
@@ -585,14 +523,14 @@ class _ProviderInboxScreenState extends ConsumerState<_ProviderInboxScreen> {
                   ),
                   const SizedBox(width: 8),
                   FilledButton.icon(
-                    onPressed: () => _showStartConsultationDialog(context),
+                    onPressed: () => _refreshConsultations(context),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF1565C0),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('New', style: TextStyle(fontSize: 13)),
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Refresh', style: TextStyle(fontSize: 13)),
                   ),
                 ],
               ),
@@ -1233,7 +1171,7 @@ class _ProviderProfileScreen extends ConsumerWidget {
                     child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
                   ),
                   InkWell(
-                    onTap: () => _showEditProfile(context, user),
+                    onTap: () => _showEditProfile(context, ref, user),
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
@@ -1269,7 +1207,7 @@ class _ProviderProfileScreen extends ConsumerWidget {
                 _ProviderSettingsGroup(
                   label: 'Account',
                   items: [
-                    _ProviderSettingsTile(icon: Icons.person_outline, title: 'Full Name', value: user?.fullName ?? 'N/A', color: const Color(0xFF1565C0), onTap: () => _showEditProfile(context, user)),
+                    _ProviderSettingsTile(icon: Icons.person_outline, title: 'Full Name', value: user?.fullName ?? 'N/A', color: const Color(0xFF1565C0), onTap: () => _showEditProfile(context, ref, user)),
                     _ProviderSettingsTile(icon: Icons.phone_outlined, title: 'Phone Number', value: user?.phoneNumber ?? 'N/A', color: const Color(0xFF1565C0)),
                     _ProviderSettingsTile(icon: Icons.security_outlined, title: 'Account Security', value: 'Change Password', color: const Color(0xFF1565C0), onTap: () {}),
                   ],
@@ -1314,7 +1252,7 @@ class _ProviderProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _showEditProfile(BuildContext context, dynamic user) {
+  void _showEditProfile(BuildContext context, WidgetRef ref, dynamic user) {
     final name = TextEditingController(text: user?.fullName);
     showDialog(
       context: context,
@@ -1324,7 +1262,19 @@ class _ProviderProfileScreen extends ConsumerWidget {
         content: TextField(controller: name, decoration: const InputDecoration(labelText: 'Full Name')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Save')),
+          FilledButton(
+            onPressed: () async {
+              final ok = await ref.read(authControllerProvider.notifier).updateProfile(fullName: name.text.trim());
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(ok ? 'Profile updated.' : ref.read(authControllerProvider).error ?? 'Update failed')),
+                );
+              }
+            },
+            child: const Text('Save'),
+          ),
         ],
       ),
     );

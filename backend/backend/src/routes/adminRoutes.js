@@ -37,6 +37,7 @@ router.get(
       page,
       users: users.map((u) => ({
         user_id: u.id,
+        id: u.id,
         full_name: u.fullName,
         phone_number: u.phoneNumber,
         role: u.role,
@@ -151,7 +152,15 @@ router.post(
       }
     });
     await invalidateByPrefix("facilities:");
-    res.status(201).json({ facility_id: created.id });
+    res.status(201).json({
+      facility_id: created.id,
+      id: created.id,
+      name: created.name,
+      address: created.address,
+      phone: created.phone,
+      latitude: created.latitude,
+      longitude: created.longitude
+    });
   })
 );
 

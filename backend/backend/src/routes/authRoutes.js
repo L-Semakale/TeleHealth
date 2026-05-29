@@ -75,7 +75,8 @@ router.post(
     res.status(200).json({
       token,
       role: user.role,
-      anonymous_id: user.anonymousId
+      anonymous_id: user.anonymousId,
+      full_name: user.fullName
     });
   })
 );

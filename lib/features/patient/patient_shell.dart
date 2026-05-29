@@ -729,7 +729,7 @@ class _SymptomReportScreenState extends ConsumerState<SymptomReportScreen> {
   }
 }
 
-class _TriageResultView extends StatelessWidget {
+class _TriageResultView extends ConsumerWidget {
   final TriageResult result;
   final VoidCallback onReset;
   final void Function(int, {String? consultationId})? onNavigate;
@@ -752,7 +752,7 @@ class _TriageResultView extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -775,7 +775,20 @@ class _TriageResultView extends StatelessWidget {
           SizedBox(
             width: double.infinity, height: 54,
             child: FilledButton.icon(
-              onPressed: () => onNavigate?.call(2),
+              onPressed: () async {
+                final consultation = await ref
+                    .read(patientControllerProvider.notifier)
+                    .startConsultation(reportId: result.reportId);
+                if (!context.mounted) return;
+                if (consultation != null) {
+                  onNavigate?.call(2, consultationId: consultation.id);
+                } else {
+                  final err = ref.read(patientControllerProvider).error;
+                  if (err != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+                  }
+                }
+              },
               icon: const Icon(Icons.chat_bubble_outline, size: 18),
               label: const Text('Start Consultation'),
               style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1565C0)),
@@ -1006,9 +1019,40 @@ class PatientHomeScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _startConsultation(
+    BuildContext context,
+    WidgetRef ref,
+    void Function(int, {String? consultationId})? onNavigate, {
+    String? reportId,
+  }) async {
+    final consultation = await ref
+        .read(patientControllerProvider.notifier)
+        .startConsultation(reportId: reportId);
+    if (!context.mounted) return;
+    if (consultation != null) {
+      onNavigate?.call(2, consultationId: consultation.id);
+    } else {
+      final err = ref.read(patientControllerProvider).error;
+      if (err != null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      }
+    }
+  }
+
   void _showConsultModal(BuildContext context, WidgetRef ref, TriageResult? triage, void Function(int, {String? consultationId})? onNavigate) {
+    final openConsult = ref.read(patientControllerProvider).consultations.any((c) => c.status == 'open');
+    if (openConsult) {
+      final open = ref.read(patientControllerProvider).consultations.firstWhere((c) => c.status == 'open');
+      onNavigate?.call(2, consultationId: open.id);
+      return;
+    }
     if (triage != null) {
-      onNavigate?.call(2);
+      _startConsultation(
+        context,
+        ref,
+        onNavigate,
+        reportId: ref.read(patientControllerProvider).lastReportId,
+      );
       return;
     }
     showDialog(
@@ -1024,7 +1068,10 @@ class PatientHomeScreen extends ConsumerWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Submit Symptoms First')),
           FilledButton(
-            onPressed: () { Navigator.pop(ctx); onNavigate?.call(2); },
+            onPressed: () {
+              Navigator.pop(ctx);
+              _startConsultation(context, ref, onNavigate);
+            },
             child: const Text('Continue Anyway'),
           ),
         ],
@@ -1396,7 +1443,18 @@ class _PatientConsultationsScreenState extends ConsumerState<PatientConsultation
         message: 'No consultations yet.',
         icon: Icons.chat_bubble_outline,
         actionLabel: 'Start a Consultation',
-        onAction: () => widget.onNavigate?.call(1),
+        onAction: () async {
+          final consultation = await ref.read(patientControllerProvider.notifier).startConsultation();
+          if (!mounted) return;
+          if (consultation != null) {
+            setState(() => _activeChat = consultation.id);
+          } else {
+            final err = ref.read(patientControllerProvider).error;
+            if (err != null && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+            }
+          }
+        },
       );
     }
     return ListView.builder(
@@ -2150,7 +2208,7 @@ class PatientProfileScreen extends ConsumerWidget {
                     child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
                   ),
                   InkWell(
-                    onTap: () => _showEditProfile(context, user),
+                    onTap: () => _showEditProfile(context, ref, user),
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
@@ -2186,9 +2244,9 @@ class PatientProfileScreen extends ConsumerWidget {
                 _ProfileGroup(
                   label: 'Account',
                   items: [
-                    _ProfileTile(icon: Icons.person_outline, title: 'Full Name', value: user?.fullName ?? 'N/A', onTap: () => _showEditProfile(context, user)),
-                    _ProfileTile(icon: Icons.phone_outlined, title: 'Phone Number', value: user?.phoneNumber ?? 'N/A', onTap: () => _showChangePhone(context)),
-                    _ProfileTile(icon: Icons.security_outlined, title: 'Account Security', value: 'Change Password', onTap: () => _showChangePassword(context)),
+                    _ProfileTile(icon: Icons.person_outline, title: 'Full Name', value: user?.fullName ?? 'N/A', onTap: () => _showEditProfile(context, ref, user)),
+                    _ProfileTile(icon: Icons.phone_outlined, title: 'Phone Number', value: user?.phoneNumber ?? 'N/A', onTap: () => _showChangePhone(context, ref)),
+                    _ProfileTile(icon: Icons.security_outlined, title: 'Account Security', value: 'Change Password', onTap: () => _showChangePassword(context, ref)),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -2231,7 +2289,7 @@ class PatientProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _showEditProfile(BuildContext context, dynamic user) {
+  void _showEditProfile(BuildContext context, WidgetRef ref, dynamic user) {
     final name = TextEditingController(text: user?.fullName);
     showDialog(
       context: context,
@@ -2242,9 +2300,15 @@ class PatientProfileScreen extends ConsumerWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
+              final ok = await ref.read(authControllerProvider.notifier).updateProfile(fullName: name.text.trim());
+              if (!ctx.mounted) return;
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile update coming soon.')));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(ok ? 'Profile updated successfully.' : ref.read(authControllerProvider).error ?? 'Update failed')),
+                );
+              }
             },
             child: const Text('Save'),
           ),
@@ -2253,7 +2317,7 @@ class PatientProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _showChangePhone(BuildContext context) {
+  void _showChangePhone(BuildContext context, WidgetRef ref) {
     final phoneCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     showDialog(
@@ -2282,10 +2346,16 @@ class PatientProfileScreen extends ConsumerWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               if (!formKey.currentState!.validate()) return;
+              final ok = await ref.read(authControllerProvider.notifier).updateProfile(phoneNumber: phoneCtrl.text.trim());
+              if (!ctx.mounted) return;
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number updated successfully.')));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(ok ? 'Phone number updated successfully.' : ref.read(authControllerProvider).error ?? 'Update failed')),
+                );
+              }
             },
             child: const Text('Update'),
           ),
@@ -2294,7 +2364,7 @@ class PatientProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _showChangePassword(BuildContext context) {
+  void _showChangePassword(BuildContext context, WidgetRef ref) {
     final currentCtrl = TextEditingController();
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
@@ -2364,10 +2434,19 @@ class PatientProfileScreen extends ConsumerWidget {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 if (!formKey.currentState!.validate()) return;
+                final ok = await ref.read(authControllerProvider.notifier).updateProfile(
+                  currentPassword: currentCtrl.text,
+                  newPassword: newCtrl.text,
+                );
+                if (!ctx.mounted) return;
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed successfully.')));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(ok ? 'Password changed successfully.' : ref.read(authControllerProvider).error ?? 'Update failed')),
+                  );
+                }
               },
               child: const Text('Change Password'),
             ),

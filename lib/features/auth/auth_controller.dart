@@ -81,6 +81,47 @@ class AuthController extends StateNotifier<AuthState> {
     await _storage.clear();
     state = const AuthState();
   }
+
+  Future<bool> updateProfile({
+    String? fullName,
+    String? phoneNumber,
+    String? currentPassword,
+    String? newPassword,
+  }) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      await _api.updateProfile(
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      final current = state.user;
+      if (current != null) {
+        final updated = AuthUser(
+          token: current.token,
+          role: current.role,
+          anonymousId: current.anonymousId,
+          fullName: fullName ?? current.fullName,
+          phoneNumber: phoneNumber ?? current.phoneNumber,
+        );
+        await _storage.saveAuth(
+          token: updated.token,
+          role: updated.role.name,
+          anonymousId: updated.anonymousId,
+          fullName: updated.fullName,
+          phone: updated.phoneNumber,
+        );
+        state = state.copyWith(loading: false, user: updated);
+      } else {
+        state = state.copyWith(loading: false);
+      }
+      return true;
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return false;
+    }
+  }
 }
 
 final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {

@@ -16,13 +16,21 @@ This repository contains:
 
 ## Quick Start
 1. Copy env file:
-   - `backend/.env.example` -> `backend/.env`
-2. Start stack:
+   - `backend/backend/.env.example` -> `backend/backend/.env`
+2. Start stack from `backend/`:
    - `docker compose up --build`
-3. Run migrations in API container:
+3. Run migrations and seed in API container:
    - `docker exec -it telemedicine-api npx prisma migrate dev --name init`
+   - `docker exec -it telemedicine-api npm run prisma:seed`
 4. API base URL:
    - `http://localhost:3000`
+
+## Demo accounts (after seed)
+| Role | Phone | Password |
+|------|-------|----------|
+| Admin | +26650000099 | password123 |
+| Provider | +26650000088 | password123 |
+| Patient | +26657712345 | password123 |
 
 ## Important Notes
 - `AES_ENCRYPTION_KEY` must be exactly 32 chars.

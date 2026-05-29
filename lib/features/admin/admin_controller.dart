@@ -59,8 +59,14 @@ class AdminController extends StateNotifier<AdminState> {
     state = state.copyWith(loading: true, error: null);
     try {
       final analytics = await _api.triageAnalytics();
-      final consults = await _api.consultations(page: 1);
-      state = state.copyWith(loading: false, analytics: analytics, consultations: consults);
+      final health = await _api.systemHealth();
+      final consults = await _api.adminConsultations();
+      state = state.copyWith(
+        loading: false,
+        analytics: analytics,
+        consultations: consults,
+        health: health,
+      );
     } on AppException catch (e) {
       state = state.copyWith(loading: false, error: e.message);
     }

@@ -17,14 +17,7 @@ router.get(
 
     const where = {
       isActive: true,
-      ...(search
-        ? {
-            name: {
-              contains: search,
-              mode: "insensitive"
-            }
-          }
-        : {})
+      ...(search ? { name: { contains: search } } : {})
     };
 
     const facilities = await prisma.facility.findMany({
@@ -34,6 +27,7 @@ router.get(
     const payload = {
       facilities: facilities.map((f) => ({
         facility_id: f.id,
+        id: f.id,
         name: f.name,
         address: f.address,
         phone: f.phone,
