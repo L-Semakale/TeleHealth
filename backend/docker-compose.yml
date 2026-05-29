@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: telemedicine-postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: telemedicine
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: telemedicine-redis
+    ports:
+      - "6379:6379"
+
+  ml-service:
+    build:
+      context: ./ml-service
+    container_name: telemedicine-ml
+    ports:
+      - "5001:5001"
+
+  api:
+    build:
+      context: ./backend
+    container_name: telemedicine-api
+    environment:
+      DATABASE_URL: postgresql://user:password@postgres:5432/telemedicine
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: replace-with-minimum-32-characters-secret
+      AES_ENCRYPTION_KEY: 12345678901234567890123456789012
+      ML_SERVICE_URL: http://ml-service:5001
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+      - ml-service
+
+volumes:
+  pg_data:
