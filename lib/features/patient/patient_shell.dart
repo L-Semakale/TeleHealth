@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models.dart';
 import '../../core/utils/formatters.dart';
@@ -32,7 +33,7 @@ class _PatientShellState extends ConsumerState<PatientShell> {
 
   static const _titles = [
     'Dashboard', 'Symptom Report', 'My Consultations',
-    'Referrals', 'Clinic Directory', 'My Profile',
+    'Referrals', 'Clinic Directory', 'My Profile', 'Appointments',
   ];
 
   @override
@@ -46,6 +47,7 @@ class _PatientShellState extends ConsumerState<PatientShell> {
       const PatientReferralsScreen(),
       const PatientClinicsScreen(),
       const PatientProfileScreen(),
+      PatientAppointmentsScreen(onNavigate: _navigate),
     ];
 
     return Scaffold(
@@ -90,6 +92,7 @@ class _PatientShellState extends ConsumerState<PatientShell> {
                   const NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment), label: 'Referrals'),
                   const NavigationDestination(icon: Icon(Icons.local_hospital_outlined), selectedIcon: Icon(Icons.local_hospital), label: 'Clinics'),
                   const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
+                  const NavigationDestination(icon: Icon(Icons.calendar_today_outlined), selectedIcon: Icon(Icons.calendar_today), label: 'Bookings'),
                 ],
               );
             })
@@ -414,6 +417,7 @@ class _PatientSidebar extends ConsumerWidget {
           _SidebarItem(icon: Icons.chat_bubble_rounded, label: 'My Consultations', selected: selectedIndex == 2, onTap: () => onIndexChanged(2), badge: unreadConsults > 0 ? unreadConsults : null),
           _SidebarItem(icon: Icons.assignment_rounded, label: 'Referrals', selected: selectedIndex == 3, onTap: () => onIndexChanged(3), badge: newReferrals > 0 ? newReferrals : null),
           _SidebarItem(icon: Icons.local_hospital_rounded, label: 'Clinic Directory', selected: selectedIndex == 4, onTap: () => onIndexChanged(4)),
+          _SidebarItem(icon: Icons.calendar_today_rounded, label: 'Appointments', selected: selectedIndex == 6, onTap: () => onIndexChanged(6)),
           const Spacer(),
           // ── Bottom section ────────────────────────────
           Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: Text('ACCOUNT', style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
@@ -1941,9 +1945,18 @@ class _PatientReferralsScreenState extends ConsumerState<PatientReferralsScreen>
             Row(children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opening dialer coming soon.')));
+                    final uri = Uri.parse('tel:${r.phone}');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not open dialer')),
+                        );
+                      }
+                    }
                   },
                   icon: const Icon(Icons.phone, size: 16),
                   label: const Text('Call'),
@@ -1956,7 +1969,10 @@ class _PatientReferralsScreenState extends ConsumerState<PatientReferralsScreen>
                 child: FilledButton.icon(
                   onPressed: () {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Appointment booking coming soon.')));
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => BookAppointmentDialog(facilityId: r.id, facilityName: r.facilityName),
+                    );
                   },
                   icon: const Icon(Icons.calendar_today, size: 16),
                   label: const Text('Book Appointment'),
@@ -2115,9 +2131,18 @@ class _PatientClinicsScreenState extends ConsumerState<PatientClinicsScreen> {
             Row(children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opening dialer coming soon.')));
+                    final uri = Uri.parse('tel:${f.phone}');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not open dialer')),
+                        );
+                      }
+                    }
                   },
                   icon: const Icon(Icons.phone, size: 16),
                   label: const Text('Call'),
@@ -2130,7 +2155,10 @@ class _PatientClinicsScreenState extends ConsumerState<PatientClinicsScreen> {
                 child: FilledButton.icon(
                   onPressed: () {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Appointment booking coming soon.')));
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => BookAppointmentDialog(facilityId: f.id, facilityName: f.name),
+                    );
                   },
                   icon: const Icon(Icons.calendar_today, size: 16),
                   label: const Text('Book Appointment'),
@@ -2516,5 +2544,472 @@ class _ProfileTile extends StatelessWidget {
       trailing: onTap != null ? const Icon(Icons.chevron_right, size: 18, color: Colors.grey) : null,
       onTap: onTap,
     );
+  }
+}
+
+class PatientAppointmentsScreen extends ConsumerStatefulWidget {
+  final void Function(int, {String? consultationId})? onNavigate;
+  const PatientAppointmentsScreen({super.key, this.onNavigate});
+
+  @override
+  ConsumerState<PatientAppointmentsScreen> createState() => _PatientAppointmentsScreenState();
+}
+
+class _PatientAppointmentsScreenState extends ConsumerState<PatientAppointmentsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(patientControllerProvider.notifier).loadAppointments();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(patientControllerProvider);
+    final upcoming = state.appointments.where((a) => a.isUpcoming).toList();
+    final past = state.appointments.where((a) => !a.isUpcoming).toList();
+
+    if (state.loading && state.appointments.isEmpty) {
+      return const LoadingView(message: 'Loading appointments...');
+    }
+
+    if (state.appointments.isEmpty) {
+      return EmptyView(
+        message: 'No appointments yet.\nBook an appointment with a healthcare provider.',
+        icon: Icons.calendar_today_outlined,
+        actionLabel: 'Book Appointment',
+        onAction: () => _showBookAppointmentDialog(context),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('My Appointments', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              FilledButton.icon(
+                onPressed: () => _showBookAppointmentDialog(context),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Book New'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFD6246F),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          if (upcoming.isNotEmpty) ...[
+            _SectionHeader(title: 'Upcoming (${upcoming.length})'),
+            const SizedBox(height: 12),
+            ...upcoming.map((a) => _AppointmentCard(
+              appointment: a,
+              onCancel: () => _confirmCancel(context, a),
+              onNavigate: widget.onNavigate,
+            )),
+            const SizedBox(height: 32),
+          ],
+          if (past.isNotEmpty) ...[
+            _SectionHeader(title: 'Past Appointments'),
+            const SizedBox(height: 12),
+            ...past.map((a) => _AppointmentCard(
+              appointment: a,
+              isPast: true,
+              onNavigate: widget.onNavigate,
+            )),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showBookAppointmentDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => const BookAppointmentDialog(),
+    );
+  }
+
+  void _confirmCancel(BuildContext context, Appointment appointment) {
+    final reasonCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(children: [
+          Icon(Icons.cancel_outlined, color: Colors.orange),
+          SizedBox(width: 10),
+          Text('Cancel Appointment'),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Are you sure you want to cancel your appointment with ${appointment.providerName}?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Reason (optional)',
+                hintText: 'e.g., Feeling better, rescheduling',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep')),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(patientControllerProvider.notifier).cancelAppointment(
+                appointment.id,
+                reason: reasonCtrl.text.isNotEmpty ? reasonCtrl.text : null,
+              );
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Cancel Appointment'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AppointmentCard extends StatelessWidget {
+  final Appointment appointment;
+  final bool isPast;
+  final VoidCallback? onCancel;
+  final void Function(int, {String? consultationId})? onNavigate;
+
+  const _AppointmentCard({
+    required this.appointment,
+    this.isPast = false,
+    this.onCancel,
+    this.onNavigate,
+  });
+
+  Color get _statusColor {
+    switch (appointment.status) {
+      case AppointmentStatus.scheduled:
+        return Colors.blue;
+      case AppointmentStatus.confirmed:
+        return Colors.green;
+      case AppointmentStatus.completed:
+        return Colors.grey;
+      case AppointmentStatus.cancelled:
+        return Colors.red;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isPast ? Colors.grey[200]! : const Color(0xFFD6246F).withValues(alpha: 0.2)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 3))],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    appointment.statusLabel.toUpperCase(),
+                    style: TextStyle(color: _statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const Spacer(),
+                if (!isPast && appointment.canCancel && onCancel != null)
+                  TextButton.icon(
+                    onPressed: onCancel,
+                    icon: const Icon(Icons.cancel_outlined, size: 16, color: Colors.orange),
+                    label: const Text('Cancel', style: TextStyle(color: Colors.orange, fontSize: 12)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: const Color(0xFFD6246F).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.medical_services_outlined, color: Color(0xFFD6246F), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(appointment.providerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      if (appointment.facilityName != null) ...[
+                        const SizedBox(height: 2),
+                        Text(appointment.facilityName!, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey[500]),
+                const SizedBox(width: 6),
+                Text(
+                  DateFormat('EEEE, MMM d, y').format(appointment.scheduledAt),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.access_time_outlined, size: 14, color: Colors.grey[500]),
+                const SizedBox(width: 6),
+                Text(
+                  DateFormat('h:mm a').format(appointment.scheduledAt),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                ),
+                const SizedBox(width: 8),
+                Text('• ${appointment.duration} min', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              ],
+            ),
+            if (appointment.notes != null && appointment.notes!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('Notes: ${appointment.notes}', style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class BookAppointmentDialog extends ConsumerStatefulWidget {
+  final String? facilityId;
+  final String? facilityName;
+  const BookAppointmentDialog({super.key, this.facilityId, this.facilityName});
+
+  @override
+  ConsumerState<BookAppointmentDialog> createState() => _BookAppointmentDialogState();
+}
+
+class _BookAppointmentDialogState extends ConsumerState<BookAppointmentDialog> {
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
+  AvailableProvider? _selectedProvider;
+  String? _selectedTimeSlot;
+  final _notesCtrl = TextEditingController();
+  bool _loading = false;
+
+  final List<String> _timeSlots = [
+    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+    '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(patientControllerProvider.notifier).loadAvailableProviders(date: _selectedDate);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(patientControllerProvider);
+    final providers = state.availableProviders;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Container(
+        width: 600,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: const Color(0xFFD6246F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.calendar_today, color: Color(0xFFD6246F)),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text('Book Appointment', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                ),
+                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            if (widget.facilityName != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD6246F).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFD6246F).withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.local_hospital, color: Color(0xFFD6246F), size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Booking at:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          Text(widget.facilityName!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+            const Text('Select Date', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: List.generate(7, (i) {
+                final date = DateTime.now().add(Duration(days: i));
+                final isSelected = _selectedDate.day == date.day && _selectedDate.month == date.month;
+                return ChoiceChip(
+                  label: Text(DateFormat('E d').format(date)),
+                  selected: isSelected,
+                  onSelected: (_) {
+                    setState(() => _selectedDate = date);
+                    ref.read(patientControllerProvider.notifier).loadAvailableProviders(date: date);
+                  },
+                  selectedColor: const Color(0xFFD6246F).withValues(alpha: 0.2),
+                );
+              }),
+            ),
+            const SizedBox(height: 20),
+            const Text('Select Provider', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            if (state.loading && providers.isEmpty)
+              const Center(child: CircularProgressIndicator())
+            else if (providers.isEmpty)
+              Text('No providers available for this date.', style: TextStyle(color: Colors.grey[600]))
+            else
+              Wrap(
+                spacing: 8,
+                children: providers.map((p) {
+                  final isSelected = _selectedProvider?.providerId == p.providerId;
+                  return ChoiceChip(
+                    label: Text(p.fullName),
+                    selected: isSelected,
+                    onSelected: (_) => setState(() => _selectedProvider = p),
+                    selectedColor: const Color(0xFFD6246F).withValues(alpha: 0.2),
+                  );
+                }).toList(),
+              ),
+            const SizedBox(height: 20),
+            const Text('Select Time', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _timeSlots.map((time) {
+                final isSelected = _selectedTimeSlot == time;
+                final isBooked = _selectedProvider?.bookedSlots.any(
+                  (b) => DateFormat('HH:mm').format(b.scheduledAt) == time,
+                ) ?? false;
+                return ChoiceChip(
+                  label: Text(time),
+                  selected: isSelected,
+                  onSelected: isBooked ? null : (_) => setState(() => _selectedTimeSlot = time),
+                  selectedColor: const Color(0xFFD6246F).withValues(alpha: 0.2),
+                  disabledColor: Colors.grey[200],
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _notesCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Notes for provider (optional)',
+                hintText: 'e.g., Follow-up for previous consultation',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton(
+                onPressed: _canBook ? _book : null,
+                child: _loading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Book Appointment'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool get _canBook => _selectedProvider != null && _selectedTimeSlot != null && !_loading;
+
+  Future<void> _book() async {
+    if (_selectedProvider == null || _selectedTimeSlot == null) return;
+
+    setState(() => _loading = true);
+
+    final parts = _selectedTimeSlot!.split(':');
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
+    final scheduledAt = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      hour,
+      minute,
+    );
+
+    final appointment = await ref.read(patientControllerProvider.notifier).bookAppointment(
+      providerId: _selectedProvider!.providerId,
+      facilityId: widget.facilityId,
+      scheduledAt: scheduledAt,
+      notes: _notesCtrl.text.isNotEmpty ? _notesCtrl.text : null,
+    );
+
+    setState(() => _loading = false);
+
+    if (appointment != null && mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Appointment booked with ${appointment.providerName}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _notesCtrl.dispose();
+    super.dispose();
   }
 }

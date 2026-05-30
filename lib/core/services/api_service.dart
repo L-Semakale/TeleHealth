@@ -40,6 +40,38 @@ abstract class ApiService {
     String? newPassword,
   });
   Future<List<Consultation>> adminConsultations({String? status});
+  Future<List<AvailableProvider>> getAvailableProviders({DateTime? date});
+  Future<List<Appointment>> getMyAppointments({int page = 1, String? status});
+  Future<List<Appointment>> getProviderAppointments({int page = 1, String? status});
+  Future<Appointment> bookAppointment({
+    required String providerId,
+    String? facilityId,
+    required DateTime scheduledAt,
+    int duration = 30,
+    String type = 'in_person',
+    String? notes,
+  });
+  Future<void> cancelAppointment(String appointmentId, {String? reason});
+  Future<void> confirmAppointment(String appointmentId);
+  Future<void> completeAppointment(String appointmentId, {String? notes});
+  Future<List<ProviderSchedule>> getProviderSchedule();
+  Future<void> addProviderSchedule({
+    required int dayOfWeek,
+    required String startTime,
+    required String endTime,
+  });
+  Future<void> updateProviderSchedule(String scheduleId, {
+    String? startTime,
+    String? endTime,
+    bool? isAvailable,
+  });
+  Future<void> deleteProviderSchedule(String scheduleId);
+  Future<Appointment> bookAppointmentAtFacility(String facilityId, {
+    required String providerId,
+    required DateTime scheduledAt,
+    int duration = 30,
+    String? notes,
+  });
 }
 
 class AppException implements Exception {
@@ -505,6 +537,230 @@ class RealApiService implements ApiService {
       _throwApiError(e);
     }
   }
+
+  @override
+  Future<List<AvailableProvider>> getAvailableProviders({DateTime? date}) async {
+    try {
+      final response = await _dio.get(
+        '/api/appointments/providers/available',
+        queryParameters: {if (date != null) 'date': date.toIso8601String().split('T')[0]},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final items = data['providers'] as List<dynamic>? ?? [];
+      return items.map((e) {
+        final schedules = (e['schedules'] as List<dynamic>? ?? []).map((s) => ProviderSchedule(
+          id: s['schedule_id'] as String? ?? '',
+          dayOfWeek: s['day_of_week'] as int? ?? 0,
+          startTime: s['start_time'] as String? ?? '',
+          endTime: s['end_time'] as String? ?? '',
+        )).toList();
+        final bookedSlots = (e['booked_slots'] as List<dynamic>? ?? []).map((b) => BookedSlot(
+          scheduledAt: DateTime.tryParse(b['scheduled_at']?.toString() ?? '') ?? DateTime.now(),
+          duration: b['duration'] as int? ?? 30,
+        )).toList();
+        return AvailableProvider(
+          providerId: e['provider_id'] as String? ?? '',
+          fullName: e['full_name'] as String? ?? '',
+          anonymousId: e['anonymous_id'] as String? ?? '',
+          schedules: schedules,
+          bookedSlots: bookedSlots,
+        );
+      }).toList();
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<List<Appointment>> getMyAppointments({int page = 1, String? status}) async {
+    try {
+      final response = await _dio.get(
+        '/api/appointments/my-appointments',
+        queryParameters: {'page': page, if (status != null) 'status': status},
+      );
+      return _mapAppointments(response.data);
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<List<Appointment>> getProviderAppointments({int page = 1, String? status}) async {
+    try {
+      final response = await _dio.get(
+        '/api/appointments/provider-appointments',
+        queryParameters: {'page': page, if (status != null) 'status': status},
+      );
+      return _mapAppointments(response.data);
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  List<Appointment> _mapAppointments(dynamic data) {
+    final items = data is Map<String, dynamic>
+        ? (data['appointments'] as List<dynamic>? ?? [])
+        : (data as List<dynamic>? ?? []);
+    return items.map((e) {
+      final m = e as Map<String, dynamic>;
+      final statusStr = m['status'] as String? ?? 'scheduled';
+      return Appointment(
+        id: m['appointment_id'] as String? ?? m['id'] as String? ?? '',
+        patientId: m['patient_id'] as String? ?? '',
+        patientAnonymousId: m['patient_anonymous_id'] as String? ?? '',
+        providerId: m['provider_id'] as String? ?? '',
+        providerName: m['provider_name'] as String? ?? '',
+        facilityId: m['facility_id'] as String?,
+        facilityName: m['facility_name'] as String?,
+        facilityAddress: m['facility_address'] as String?,
+        scheduledAt: DateTime.tryParse(m['scheduled_at']?.toString() ?? '') ?? DateTime.now(),
+        duration: m['duration'] as int? ?? 30,
+        status: AppointmentStatus.values.firstWhere(
+          (s) => s.name == statusStr,
+          orElse: () => AppointmentStatus.scheduled,
+        ),
+        type: m['type'] as String? ?? 'in_person',
+        notes: m['notes'] as String?,
+        createdAt: DateTime.tryParse(m['created_at']?.toString() ?? '') ?? DateTime.now(),
+        updatedAt: DateTime.tryParse(m['updated_at']?.toString() ?? '') ?? DateTime.now(),
+      );
+    }).toList();
+  }
+
+  @override
+  Future<Appointment> bookAppointment({
+    required String providerId,
+    String? facilityId,
+    required DateTime scheduledAt,
+    int duration = 30,
+    String type = 'in_person',
+    String? notes,
+  }) async {
+    try {
+      final response = await _dio.post('/api/appointments', data: {
+        'provider_id': providerId,
+        if (facilityId != null) 'facility_id': facilityId,
+        'scheduled_at': scheduledAt.toIso8601String(),
+        'duration': duration,
+        'type': type,
+        if (notes != null) 'notes': notes,
+      });
+      final data = response.data as Map<String, dynamic>;
+      final appt = data['appointment'] as Map<String, dynamic>;
+      return _mapAppointments([appt]).first;
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<Appointment> bookAppointmentAtFacility(String facilityId, {
+    required String providerId,
+    required DateTime scheduledAt,
+    int duration = 30,
+    String? notes,
+  }) async {
+    return bookAppointment(
+      providerId: providerId,
+      facilityId: facilityId,
+      scheduledAt: scheduledAt,
+      duration: duration,
+      type: 'in_person',
+      notes: notes,
+    );
+  }
+
+  @override
+  Future<void> cancelAppointment(String appointmentId, {String? reason}) async {
+    try {
+      await _dio.put('/api/appointments/$appointmentId/cancel', data: {
+        if (reason != null) 'reason': reason,
+      });
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> confirmAppointment(String appointmentId) async {
+    try {
+      await _dio.put('/api/appointments/$appointmentId/confirm');
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> completeAppointment(String appointmentId, {String? notes}) async {
+    try {
+      await _dio.put('/api/appointments/$appointmentId/complete', data: {
+        if (notes != null) 'notes': notes,
+      });
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<List<ProviderSchedule>> getProviderSchedule() async {
+    try {
+      final response = await _dio.get('/api/appointments/provider-schedule');
+      final data = response.data as Map<String, dynamic>;
+      final items = data['schedules'] as List<dynamic>? ?? [];
+      return items.map((s) => ProviderSchedule(
+        id: s['schedule_id'] as String? ?? '',
+        dayOfWeek: s['day_of_week'] as int? ?? 0,
+        startTime: s['start_time'] as String? ?? '',
+        endTime: s['end_time'] as String? ?? '',
+        isAvailable: s['is_available'] as bool? ?? true,
+      )).toList();
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> addProviderSchedule({
+    required int dayOfWeek,
+    required String startTime,
+    required String endTime,
+  }) async {
+    try {
+      await _dio.post('/api/appointments/provider-schedule', data: {
+        'day_of_week': dayOfWeek,
+        'start_time': startTime,
+        'end_time': endTime,
+      });
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> updateProviderSchedule(String scheduleId, {
+    String? startTime,
+    String? endTime,
+    bool? isAvailable,
+  }) async {
+    try {
+      await _dio.put('/api/appointments/provider-schedule/$scheduleId', data: {
+        if (startTime != null) 'start_time': startTime,
+        if (endTime != null) 'end_time': endTime,
+        if (isAvailable != null) 'is_available': isAvailable,
+      });
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
+
+  @override
+  Future<void> deleteProviderSchedule(String scheduleId) async {
+    try {
+      await _dio.delete('/api/appointments/provider-schedule/$scheduleId');
+    } catch (e) {
+      _throwApiError(e);
+    }
+  }
 }
 
 class MockApiService implements ApiService {
@@ -780,6 +1036,172 @@ class MockApiService implements ApiService {
   @override
   Future<List<Consultation>> adminConsultations({String? status}) async {
     return consultations(status: status);
+  }
+
+  @override
+  Future<List<AvailableProvider>> getAvailableProviders({DateTime? date}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return [
+      AvailableProvider(
+        providerId: 'PROV-001',
+        fullName: 'Dr. Sarah Johnson',
+        anonymousId: 'ANON-DR-001',
+        schedules: [
+          const ProviderSchedule(id: 'SCH-1', dayOfWeek: 1, startTime: '09:00', endTime: '17:00'),
+          const ProviderSchedule(id: 'SCH-2', dayOfWeek: 3, startTime: '09:00', endTime: '17:00'),
+          const ProviderSchedule(id: 'SCH-3', dayOfWeek: 5, startTime: '09:00', endTime: '13:00'),
+        ],
+        bookedSlots: [],
+      ),
+      AvailableProvider(
+        providerId: 'PROV-002',
+        fullName: 'Dr. Michael Chen',
+        anonymousId: 'ANON-DR-002',
+        schedules: [
+          const ProviderSchedule(id: 'SCH-4', dayOfWeek: 2, startTime: '08:00', endTime: '16:00'),
+          const ProviderSchedule(id: 'SCH-5', dayOfWeek: 4, startTime: '08:00', endTime: '16:00'),
+        ],
+        bookedSlots: [],
+      ),
+    ];
+  }
+
+  @override
+  Future<List<Appointment>> getMyAppointments({int page = 1, String? status}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    return [
+      Appointment(
+        id: 'APT-001',
+        patientId: 'PAT-001',
+        providerId: 'PROV-001',
+        providerName: 'Dr. Sarah Johnson',
+        facilityName: 'City Health Center',
+        facilityAddress: '12 Main Road',
+        scheduledAt: DateTime.now().add(const Duration(days: 2)),
+        status: AppointmentStatus.confirmed,
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
+        updatedAt: DateTime.now().subtract(const Duration(days: 5)),
+      ),
+      Appointment(
+        id: 'APT-002',
+        patientId: 'PAT-001',
+        providerId: 'PROV-002',
+        providerName: 'Dr. Michael Chen',
+        scheduledAt: DateTime.now().subtract(const Duration(days: 10)),
+        status: AppointmentStatus.completed,
+        createdAt: DateTime.now().subtract(const Duration(days: 15)),
+        updatedAt: DateTime.now().subtract(const Duration(days: 10)),
+      ),
+    ];
+  }
+
+  @override
+  Future<List<Appointment>> getProviderAppointments({int page = 1, String? status}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    return [
+      Appointment(
+        id: 'APT-003',
+        patientId: 'PAT-002',
+        patientAnonymousId: 'ANON-P-5678',
+        providerId: 'PROV-001',
+        providerName: 'Dr. Sarah Johnson',
+        scheduledAt: DateTime.now().add(const Duration(hours: 4)),
+        status: AppointmentStatus.scheduled,
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+        updatedAt: DateTime.now().subtract(const Duration(days: 1)),
+      ),
+    ];
+  }
+
+  @override
+  Future<Appointment> bookAppointment({
+    required String providerId,
+    String? facilityId,
+    required DateTime scheduledAt,
+    int duration = 30,
+    String type = 'in_person',
+    String? notes,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    return Appointment(
+      id: 'APT-${DateTime.now().millisecondsSinceEpoch}',
+      patientId: 'PAT-001',
+      providerId: providerId,
+      providerName: 'Dr. Provider',
+      facilityId: facilityId,
+      scheduledAt: scheduledAt,
+      duration: duration,
+      status: AppointmentStatus.scheduled,
+      type: type,
+      notes: notes,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<Appointment> bookAppointmentAtFacility(String facilityId, {
+    required String providerId,
+    required DateTime scheduledAt,
+    int duration = 30,
+    String? notes,
+  }) async {
+    return bookAppointment(
+      providerId: providerId,
+      facilityId: facilityId,
+      scheduledAt: scheduledAt,
+      duration: duration,
+      type: 'in_person',
+      notes: notes,
+    );
+  }
+
+  @override
+  Future<void> cancelAppointment(String appointmentId, {String? reason}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
+
+  @override
+  Future<void> confirmAppointment(String appointmentId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
+
+  @override
+  Future<void> completeAppointment(String appointmentId, {String? notes}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
+
+  @override
+  Future<List<ProviderSchedule>> getProviderSchedule() async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    return [
+      const ProviderSchedule(id: 'SCH-1', dayOfWeek: 1, startTime: '09:00', endTime: '17:00'),
+      const ProviderSchedule(id: 'SCH-2', dayOfWeek: 2, startTime: '09:00', endTime: '17:00'),
+      const ProviderSchedule(id: 'SCH-3', dayOfWeek: 3, startTime: '09:00', endTime: '17:00'),
+    ];
+  }
+
+  @override
+  Future<void> addProviderSchedule({
+    required int dayOfWeek,
+    required String startTime,
+    required String endTime,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+
+  @override
+  Future<void> updateProviderSchedule(String scheduleId, {
+    String? startTime,
+    String? endTime,
+    bool? isAvailable,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+
+  @override
+  Future<void> deleteProviderSchedule(String scheduleId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
   }
 }
 

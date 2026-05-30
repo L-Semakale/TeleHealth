@@ -13,6 +13,8 @@ class ProviderState {
   final bool hasMoreConsultations;
   final bool hasMoreMessages;
   final String? selectedConsultationId;
+  final List<ProviderSchedule> schedules;
+  final List<Appointment> appointments;
 
   const ProviderState({
     this.loading = false,
@@ -24,6 +26,8 @@ class ProviderState {
     this.hasMoreConsultations = true,
     this.hasMoreMessages = true,
     this.selectedConsultationId,
+    this.schedules = const [],
+    this.appointments = const [],
   });
 
   ProviderState copyWith({
@@ -36,6 +40,8 @@ class ProviderState {
     bool? hasMoreConsultations,
     bool? hasMoreMessages,
     String? selectedConsultationId,
+    List<ProviderSchedule>? schedules,
+    List<Appointment>? appointments,
   }) {
     return ProviderState(
       loading: loading ?? this.loading,
@@ -47,6 +53,8 @@ class ProviderState {
       hasMoreConsultations: hasMoreConsultations ?? this.hasMoreConsultations,
       hasMoreMessages: hasMoreMessages ?? this.hasMoreMessages,
       selectedConsultationId: selectedConsultationId ?? this.selectedConsultationId,
+      schedules: schedules ?? this.schedules,
+      appointments: appointments ?? this.appointments,
     );
   }
 }
@@ -136,6 +144,93 @@ class ProviderController extends StateNotifier<ProviderState> {
     } on AppException catch (e) {
       state = state.copyWith(error: e.message);
       rethrow;
+    }
+  }
+
+  Future<void> loadProviderSchedule() async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      final data = await _api.getProviderSchedule();
+      state = state.copyWith(loading: false, schedules: data);
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    }
+  }
+
+  Future<void> addSchedule({
+    required int dayOfWeek,
+    required String startTime,
+    required String endTime,
+  }) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      await _api.addProviderSchedule(
+        dayOfWeek: dayOfWeek,
+        startTime: startTime,
+        endTime: endTime,
+      );
+      await loadProviderSchedule();
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    }
+  }
+
+  Future<void> updateSchedule(String scheduleId, {
+    String? startTime,
+    String? endTime,
+    bool? isAvailable,
+  }) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      await _api.updateProviderSchedule(
+        scheduleId,
+        startTime: startTime,
+        endTime: endTime,
+        isAvailable: isAvailable,
+      );
+      await loadProviderSchedule();
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    }
+  }
+
+  Future<void> deleteSchedule(String scheduleId) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      await _api.deleteProviderSchedule(scheduleId);
+      await loadProviderSchedule();
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    }
+  }
+
+  Future<void> loadProviderAppointments({int page = 1, String? status}) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      final data = await _api.getProviderAppointments(page: page, status: status);
+      state = state.copyWith(loading: false, appointments: data);
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    }
+  }
+
+  Future<void> confirmAppointment(String appointmentId) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      await _api.confirmAppointment(appointmentId);
+      await loadProviderAppointments();
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    }
+  }
+
+  Future<void> completeAppointment(String appointmentId, {String? notes}) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      await _api.completeAppointment(appointmentId, notes: notes);
+      await loadProviderAppointments();
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
     }
   }
 }

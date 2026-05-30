@@ -23,7 +23,7 @@ class _ProviderShellState extends ConsumerState<ProviderShell> {
   int _index = 0;
   String? _activeChatId;
 
-  static const _titles = ['Dashboard', 'Consultations', 'Messages', 'Referrals', 'Clinics', 'Profile'];
+  static const _titles = ['Dashboard', 'Consultations', 'Messages', 'Referrals', 'Clinics', 'Profile', 'Schedule'];
 
   void _openChat(String consultationId) {
     setState(() { _index = 2; _activeChatId = consultationId; });
@@ -84,6 +84,7 @@ class _ProviderShellState extends ConsumerState<ProviderShell> {
       case 3: return const _ProviderReferralsScreen();
       case 4: return const _ProviderClinicsScreen();
       case 5: return const _ProviderProfileScreen();
+      case 6: return const _ProviderScheduleScreen();
       default: return const SizedBox.shrink();
     }
   }
@@ -389,6 +390,7 @@ class _ProviderSidebar extends ConsumerWidget {
           _SidebarItem(icon: Icons.chat_rounded, label: 'Messages', selected: selectedIndex == 2, onTap: () => onIndexChanged(2), badge: totalUnread > 0 ? totalUnread : null, accentColor: const Color(0xFF1565C0)),
           _SidebarItem(icon: Icons.assignment_rounded, label: 'Referrals', selected: selectedIndex == 3, onTap: () => onIndexChanged(3), accentColor: const Color(0xFF1565C0)),
           _SidebarItem(icon: Icons.local_hospital_rounded, label: 'Clinics', selected: selectedIndex == 4, onTap: () => onIndexChanged(4), accentColor: const Color(0xFF1565C0)),
+          _SidebarItem(icon: Icons.schedule_rounded, label: 'Schedule', selected: selectedIndex == 6, onTap: () => onIndexChanged(6), accentColor: const Color(0xFF1565C0)),
           const Spacer(),
           // ── Bottom section ────────────────────────────
           Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: Text('ACCOUNT', style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
@@ -1533,6 +1535,252 @@ class _StatCard extends StatelessWidget {
           Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
           Text(title, style: TextStyle(color: Colors.grey[500], fontSize: 13)),
         ],
+      ),
+    );
+  }
+}
+
+class _ProviderScheduleScreen extends ConsumerStatefulWidget {
+  const _ProviderScheduleScreen();
+
+  @override
+  ConsumerState<_ProviderScheduleScreen> createState() => _ProviderScheduleScreenState();
+}
+
+class _ProviderScheduleScreenState extends ConsumerState<_ProviderScheduleScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(providerControllerProvider.notifier).loadProviderSchedule();
+    });
+  }
+
+  final List<String> _dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(providerControllerProvider);
+    final schedules = state.schedules;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('My Availability Schedule', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              FilledButton.icon(
+                onPressed: () => _showAddScheduleDialog(context),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add Schedule'),
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1565C0)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Set your working hours so patients can book appointments with you.', style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+          const SizedBox(height: 24),
+          if (state.loading && schedules.isEmpty)
+            const Center(child: CircularProgressIndicator())
+          else if (schedules.isEmpty)
+            EmptyView(
+              message: 'No schedule set yet.\nAdd your working hours to start receiving bookings.',
+              icon: Icons.schedule_outlined,
+              actionLabel: 'Add Schedule',
+              onAction: () => _showAddScheduleDialog(context),
+            )
+          else
+            ...schedules.map((s) => _ScheduleCard(
+              schedule: s,
+              dayName: _dayNames[s.dayOfWeek],
+              onToggle: () => _toggleAvailability(s),
+              onDelete: () => _confirmDelete(s),
+            )),
+        ],
+      ),
+    );
+  }
+
+  void _showAddScheduleDialog(BuildContext context) {
+    int selectedDay = 1;
+    final startCtrl = TextEditingController(text: '09:00');
+    final endCtrl = TextEditingController(text: '17:00');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(children: [
+          Icon(Icons.schedule, color: Color(0xFF1565C0)),
+          SizedBox(width: 10),
+          Text('Add Working Hours'),
+        ]),
+        content: StatefulBuilder(
+          builder: (ctx, setDlg) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Select Day', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                children: List.generate(7, (i) {
+                  final isSelected = selectedDay == i;
+                  return ChoiceChip(
+                    label: Text(_dayNames[i]),
+                    selected: isSelected,
+                    onSelected: (_) => setDlg(() => selectedDay = i),
+                    selectedColor: const Color(0xFF1565C0).withValues(alpha: 0.2),
+                  );
+                }),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: startCtrl,
+                      decoration: const InputDecoration(labelText: 'Start Time', hintText: '09:00'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      controller: endCtrl,
+                      decoration: const InputDecoration(labelText: 'End Time', hintText: '17:00'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(providerControllerProvider.notifier).addSchedule(
+                dayOfWeek: selectedDay,
+                startTime: startCtrl.text,
+                endTime: endCtrl.text,
+              );
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggleAvailability(ProviderSchedule schedule) {
+    ref.read(providerControllerProvider.notifier).updateSchedule(
+      schedule.id,
+      isAvailable: !schedule.isAvailable,
+    );
+  }
+
+  void _confirmDelete(ProviderSchedule schedule) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Remove Schedule?'),
+        content: Text('Remove your ${_dayNames[schedule.dayOfWeek]} schedule (${schedule.startTime} - ${schedule.endTime})?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep')),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(providerControllerProvider.notifier).deleteSchedule(schedule.id);
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScheduleCard extends StatelessWidget {
+  final ProviderSchedule schedule;
+  final String dayName;
+  final VoidCallback onToggle;
+  final VoidCallback onDelete;
+
+  const _ScheduleCard({
+    required this.schedule,
+    required this.dayName,
+    required this.onToggle,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: schedule.isAvailable ? const Color(0xFF1565C0).withValues(alpha: 0.3) : Colors.grey[300]!),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 3))],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: schedule.isAvailable ? const Color(0xFF1565C0).withValues(alpha: 0.1) : Colors.grey[200],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Text(
+                  dayName,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: schedule.isAvailable ? const Color(0xFF1565C0) : Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${schedule.startTime} - ${schedule.endTime}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: schedule.isAvailable ? Colors.black87 : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    schedule.isAvailable ? 'Available for bookings' : 'Temporarily unavailable',
+                    style: TextStyle(fontSize: 13, color: schedule.isAvailable ? Colors.green : Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: schedule.isAvailable,
+              onChanged: (_) => onToggle(),
+              activeColor: const Color(0xFF1565C0),
+            ),
+            IconButton(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+            ),
+          ],
+        ),
       ),
     );
   }

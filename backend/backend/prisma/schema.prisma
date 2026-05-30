@@ -8,18 +8,21 @@ datasource db {
 }
 
 model User {
-  id               String         @id @default(uuid())
-  fullName         String         @map("full_name")
-  phoneNumber      String         @unique @map("phone_number")
-  hashedPassword   String         @map("hashed_password")
-  role             String         @default("patient")
-  anonymousId      String         @unique @map("anonymous_id")
-  isActive         Boolean        @default(true) @map("is_active")
-  createdAt        DateTime       @default(now()) @map("created_at")
-  symptomReports   SymptomReport[]
-  patientConsults  Consultation[] @relation("PatientConsultations")
-  providerConsults Consultation[] @relation("ProviderConsultations")
-  messages         Message[]
+  id                 String           @id @default(uuid())
+  fullName           String           @map("full_name")
+  phoneNumber        String           @unique @map("phone_number")
+  hashedPassword     String           @map("hashed_password")
+  role               String           @default("patient")
+  anonymousId        String           @unique @map("anonymous_id")
+  isActive           Boolean          @default(true) @map("is_active")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  symptomReports     SymptomReport[]
+  patientConsults    Consultation[]   @relation("PatientConsultations")
+  providerConsults   Consultation[]   @relation("ProviderConsultations")
+  messages           Message[]
+  providerSchedules  ProviderSchedule[]
+  patientAppointments Appointment[]   @relation("PatientAppointments")
+  providerAppointments Appointment[]  @relation("ProviderAppointments")
 
   @@map("users")
 }
@@ -92,14 +95,15 @@ model Referral {
 }
 
 model Facility {
-  id        String     @id @default(uuid())
-  name      String
-  address   String
-  phone     String?
-  latitude  Float?
-  longitude Float?
-  isActive  Boolean    @default(true) @map("is_active")
-  referrals Referral[]
+  id          String        @id @default(uuid())
+  name        String
+  address     String
+  phone       String?
+  latitude    Float?
+  longitude   Float?
+  isActive    Boolean       @default(true) @map("is_active")
+  referrals   Referral[]
+  appointments Appointment[]
 
   @@map("facilities")
 }
@@ -113,4 +117,36 @@ model RoleChangeAudit {
   changedAt    DateTime @default(now()) @map("changed_at")
 
   @@map("role_change_audits")
+}
+
+model ProviderSchedule {
+  id          String   @id @default(uuid())
+  providerId  String   @map("provider_id")
+  dayOfWeek   Int      @map("day_of_week")
+  startTime   String   @map("start_time")
+  endTime     String   @map("end_time")
+  isAvailable Boolean  @default(true) @map("is_available")
+  createdAt   DateTime @default(now()) @map("created_at")
+  provider    User     @relation(fields: [providerId], references: [id])
+
+  @@map("provider_schedules")
+}
+
+model Appointment {
+  id          String   @id @default(uuid())
+  patientId   String   @map("patient_id")
+  providerId  String   @map("provider_id")
+  facilityId  String?  @map("facility_id")
+  scheduledAt DateTime @map("scheduled_at")
+  duration    Int      @default(30)
+  status      String   @default("scheduled")
+  type        String   @default("in_person")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  patient     User     @relation("PatientAppointments", fields: [patientId], references: [id])
+  provider    User     @relation("ProviderAppointments", fields: [providerId], references: [id])
+  facility    Facility? @relation(fields: [facilityId], references: [id])
+
+  @@map("appointments")
 }

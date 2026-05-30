@@ -16,6 +16,8 @@ class PatientDataState {
   final List<Consultation> consultations;
   final List<Referral> referrals;
   final List<Facility> facilities;
+  final List<Appointment> appointments;
+  final List<AvailableProvider> availableProviders;
 
   const PatientDataState({
     this.loading = false,
@@ -25,6 +27,8 @@ class PatientDataState {
     this.consultations = const [],
     this.referrals = const [],
     this.facilities = const [],
+    this.appointments = const [],
+    this.availableProviders = const [],
   });
 
   PatientDataState copyWith({
@@ -35,6 +39,8 @@ class PatientDataState {
     List<Consultation>? consultations,
     List<Referral>? referrals,
     List<Facility>? facilities,
+    List<Appointment>? appointments,
+    List<AvailableProvider>? availableProviders,
   }) {
     return PatientDataState(
       loading: loading ?? this.loading,
@@ -44,6 +50,8 @@ class PatientDataState {
       consultations: consultations ?? this.consultations,
       referrals: referrals ?? this.referrals,
       facilities: facilities ?? this.facilities,
+      appointments: appointments ?? this.appointments,
+      availableProviders: availableProviders ?? this.availableProviders,
     );
   }
 }
@@ -237,6 +245,86 @@ class PatientController extends StateNotifier<PatientDataState> {
       state = state.copyWith(referrals: updated);
     } on AppException catch (e) {
       state = state.copyWith(error: e.message);
+    }
+  }
+
+  Future<void> loadAppointments({int page = 1, String? status}) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      final data = await _api.getMyAppointments(page: page, status: status);
+      state = state.copyWith(loading: false, appointments: data);
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    }
+  }
+
+  Future<void> loadAvailableProviders({DateTime? date}) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      final data = await _api.getAvailableProviders(date: date);
+      state = state.copyWith(loading: false, availableProviders: data);
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    }
+  }
+
+  Future<Appointment?> bookAppointment({
+    required String providerId,
+    String? facilityId,
+    required DateTime scheduledAt,
+    int duration = 30,
+    String type = 'in_person',
+    String? notes,
+  }) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      final appointment = await _api.bookAppointment(
+        providerId: providerId,
+        facilityId: facilityId,
+        scheduledAt: scheduledAt,
+        duration: duration,
+        type: type,
+        notes: notes,
+      );
+      state = state.copyWith(
+        loading: false,
+        appointments: [appointment, ...state.appointments],
+      );
+      return appointment;
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return null;
+    }
+  }
+
+  Future<void> cancelAppointment(String appointmentId, {String? reason}) async {
+    state = state.copyWith(loading: true, error: null);
+    try {
+      await _api.cancelAppointment(appointmentId, reason: reason);
+      final updated = state.appointments.map((a) {
+        if (a.id == appointmentId) {
+          return Appointment(
+            id: a.id,
+            patientId: a.patientId,
+            providerId: a.providerId,
+            providerName: a.providerName,
+            facilityId: a.facilityId,
+            facilityName: a.facilityName,
+            facilityAddress: a.facilityAddress,
+            scheduledAt: a.scheduledAt,
+            duration: a.duration,
+            status: AppointmentStatus.cancelled,
+            type: a.type,
+            notes: a.notes,
+            createdAt: a.createdAt,
+            updatedAt: DateTime.now(),
+          );
+        }
+        return a;
+      }).toList();
+      state = state.copyWith(loading: false, appointments: updated);
+    } on AppException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
     }
   }
 }

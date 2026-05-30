@@ -175,3 +175,107 @@ class SystemHealth {
     required this.uptimeSeconds,
   });
 }
+
+enum AppointmentStatus { scheduled, confirmed, completed, cancelled }
+
+class ProviderSchedule {
+  final String id;
+  final int dayOfWeek;
+  final String startTime;
+  final String endTime;
+  final bool isAvailable;
+
+  const ProviderSchedule({
+    required this.id,
+    required this.dayOfWeek,
+    required this.startTime,
+    required this.endTime,
+    this.isAvailable = true,
+  });
+}
+
+class BookedSlot {
+  final DateTime scheduledAt;
+  final int duration;
+
+  const BookedSlot({
+    required this.scheduledAt,
+    required this.duration,
+  });
+}
+
+class AvailableProvider {
+  final String providerId;
+  final String fullName;
+  final String anonymousId;
+  final List<ProviderSchedule> schedules;
+  final List<BookedSlot> bookedSlots;
+
+  const AvailableProvider({
+    required this.providerId,
+    required this.fullName,
+    required this.anonymousId,
+    required this.schedules,
+    required this.bookedSlots,
+  });
+}
+
+class Appointment {
+  final String id;
+  final String patientId;
+  final String patientAnonymousId;
+  final String providerId;
+  final String providerName;
+  final String? facilityId;
+  final String? facilityName;
+  final String? facilityAddress;
+  final DateTime scheduledAt;
+  final int duration;
+  final AppointmentStatus status;
+  final String type;
+  final String? notes;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const Appointment({
+    required this.id,
+    required this.patientId,
+    this.patientAnonymousId = '',
+    required this.providerId,
+    this.providerName = '',
+    this.facilityId,
+    this.facilityName,
+    this.facilityAddress,
+    required this.scheduledAt,
+    this.duration = 30,
+    this.status = AppointmentStatus.scheduled,
+    this.type = 'in_person',
+    this.notes,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  String get statusLabel {
+    switch (status) {
+      case AppointmentStatus.scheduled:
+        return 'Scheduled';
+      case AppointmentStatus.confirmed:
+        return 'Confirmed';
+      case AppointmentStatus.completed:
+        return 'Completed';
+      case AppointmentStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
+
+  bool get isUpcoming {
+    return scheduledAt.isAfter(DateTime.now()) &&
+        status != AppointmentStatus.cancelled &&
+        status != AppointmentStatus.completed;
+  }
+
+  bool get canCancel {
+    return status == AppointmentStatus.scheduled ||
+        status == AppointmentStatus.confirmed;
+  }
+}
