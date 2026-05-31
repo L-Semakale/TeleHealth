@@ -15,6 +15,7 @@ class ProviderState {
   final String? selectedConsultationId;
   final List<ProviderSchedule> schedules;
   final List<Appointment> appointments;
+  final List<Facility> facilities;
 
   const ProviderState({
     this.loading = false,
@@ -28,6 +29,7 @@ class ProviderState {
     this.selectedConsultationId,
     this.schedules = const [],
     this.appointments = const [],
+    this.facilities = const [],
   });
 
   ProviderState copyWith({
@@ -42,6 +44,7 @@ class ProviderState {
     String? selectedConsultationId,
     List<ProviderSchedule>? schedules,
     List<Appointment>? appointments,
+    List<Facility>? facilities,
   }) {
     return ProviderState(
       loading: loading ?? this.loading,
@@ -55,6 +58,7 @@ class ProviderState {
       selectedConsultationId: selectedConsultationId ?? this.selectedConsultationId,
       schedules: schedules ?? this.schedules,
       appointments: appointments ?? this.appointments,
+      facilities: facilities ?? this.facilities,
     );
   }
 }
@@ -123,6 +127,15 @@ class ProviderController extends StateNotifier<ProviderState> {
   Future<void> issueReferral(String consultationId, String facilityId, String notes) async {
     try {
       await _api.issueReferral(consultationId, facilityId, notes);
+    } on AppException catch (e) {
+      state = state.copyWith(error: e.message);
+    }
+  }
+
+  Future<void> loadFacilitiesForReferral() async {
+    try {
+      final data = await _api.facilities();
+      state = state.copyWith(facilities: data);
     } on AppException catch (e) {
       state = state.copyWith(error: e.message);
     }

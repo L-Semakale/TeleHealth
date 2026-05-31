@@ -755,6 +755,23 @@ class _TriageResultView extends ConsumerWidget {
     }
   }
 
+  String get _explanation {
+    if (result.recommendedAction.isNotEmpty) {
+      return result.recommendedAction;
+    }
+    // Fallback explanations if backend doesn't return recommended_action
+    switch (result.classification.toLowerCase()) {
+      case 'urgent':
+        return 'Visit a clinic or hospital immediately.';
+      case 'routine':
+        return 'Book a consultation with a provider within the next few days.';
+      case 'self-care':
+        return 'Monitor your symptoms at home. Consult a provider if symptoms worsen.';
+      default:
+        return 'Book a consultation with a provider within the next few days.';
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SingleChildScrollView(
@@ -772,7 +789,7 @@ class _TriageResultView extends ConsumerWidget {
             child: Text(_urgencyMessage, style: TextStyle(color: _color, fontWeight: FontWeight.w600, fontSize: 13)),
           ),
           const SizedBox(height: 16),
-          Text(result.recommendedAction, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, height: 1.5)),
+          Text(_explanation, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, height: 1.5)),
           const SizedBox(height: 8),
           Text('Confidence: ${(result.confidenceScore * 100).toStringAsFixed(0)}%', style: TextStyle(color: Colors.grey[600])),
           const SizedBox(height: 40),
@@ -1178,6 +1195,23 @@ class _TriageCard extends StatelessWidget {
     }
   }
 
+  String get _explanation {
+    if (triage.recommendedAction.isNotEmpty) {
+      return triage.recommendedAction;
+    }
+    // Fallback explanations if backend doesn't return recommended_action
+    switch (triage.classification.toLowerCase()) {
+      case 'urgent':
+        return 'Visit a clinic or hospital immediately.';
+      case 'routine':
+        return 'Book a consultation with a provider within the next few days.';
+      case 'self-care':
+        return 'Monitor your symptoms at home. Consult a provider if symptoms worsen.';
+      default:
+        return 'Book a consultation with a provider within the next few days.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isUrgent = triage.classification == 'urgent';
@@ -1209,7 +1243,7 @@ class _TriageCard extends StatelessWidget {
                 Text('${(triage.confidenceScore * 100).toStringAsFixed(0)}% confidence', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12)),
               ]),
               const SizedBox(height: 12),
-              Text(triage.recommendedAction, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500, height: 1.4)),
+              Text(_explanation, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500, height: 1.4)),
               const SizedBox(height: 18),
               Wrap(spacing: 10, runSpacing: 10, children: [
                 if (isUrgent) ...[  

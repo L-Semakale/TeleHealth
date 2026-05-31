@@ -860,29 +860,76 @@ class _ProviderMessagesScreenState extends ConsumerState<_ProviderMessagesScreen
   }
 
   void _issueReferral(BuildContext context, WidgetRef ref, String consultationId) {
-    final facility = TextEditingController();
     final notes = TextEditingController();
+    String? selectedFacilityId;
+    String? error;
+
+    // Load facilities from API
+    ref.read(providerControllerProvider.notifier).loadFacilitiesForReferral();
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Issue Referral'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: facility, decoration: const InputDecoration(labelText: 'Facility Name')),
-          const SizedBox(height: 12),
-          TextField(controller: notes, maxLines: 3, decoration: const InputDecoration(labelText: 'Notes for Patient')),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ref.read(providerControllerProvider.notifier).issueReferral(consultationId, facility.text, notes.text);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Referral issued successfully.')));
-            },
-            child: const Text('Issue Referral'),
-          ),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) {
+          final facilitiesState = ref.watch(providerControllerProvider);
+          final facilities = facilitiesState.facilities;
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('Issue Referral'),
+            content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                if (facilities.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: CircularProgressIndicator(),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      labelText: 'Select Clinic',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      filled: true, fillColor: Colors.grey[50],
+                    ),
+                    items: facilities.map((f) => DropdownMenuItem(
+                      value: f.id,
+                      child: Text(f.name, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (v) => setDlg(() => selectedFacilityId = v),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notes,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'Notes for Patient',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    filled: true, fillColor: Colors.grey[50],
+                  ),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                ],
+              ]),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  if (selectedFacilityId == null) {
+                    setDlg(() => error = 'Please select a clinic');
+                    return;
+                  }
+                  Navigator.pop(ctx);
+                  ref.read(providerControllerProvider.notifier).issueReferral(consultationId, selectedFacilityId!, notes.text);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Referral issued successfully.')));
+                },
+                child: const Text('Issue Referral'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -910,12 +957,20 @@ class _ProviderReferralsScreenState extends ConsumerState<_ProviderReferralsScre
     final state = ref.read(providerControllerProvider);
     final consultations = state.consultations.where((c) => c.status == 'open').toList();
     String? selectedConsultId;
+    String? selectedFacilityId;
     final notesCtrl = TextEditingController();
     String? error;
+
+    // Load facilities from API
+    ref.read(providerControllerProvider.notifier).loadFacilitiesForReferral();
+
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) {
+          final facilitiesState = ref.watch(providerControllerProvider);
+          final facilities = facilitiesState.facilities;
+
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: const Row(children: [
@@ -940,6 +995,27 @@ class _ProviderReferralsScreenState extends ConsumerState<_ProviderReferralsScre
                   onChanged: (v) => setDlg(() => selectedConsultId = v),
                 ),
                 const SizedBox(height: 14),
+                const Text('Select a clinic:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 8),
+                if (facilities.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      labelText: 'Clinic / Facility',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      filled: true, fillColor: Colors.grey[50],
+                    ),
+                    items: facilities.map((f) => DropdownMenuItem(
+                      value: f.id,
+                      child: Text(f.name, overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (v) => setDlg(() => selectedFacilityId = v),
+                  ),
+                const SizedBox(height: 14),
                 TextField(
                   controller: notesCtrl,
                   maxLines: 3,
@@ -961,10 +1037,14 @@ class _ProviderReferralsScreenState extends ConsumerState<_ProviderReferralsScre
                     setDlg(() => error = 'Please select a consultation');
                     return;
                   }
+                  if (selectedFacilityId == null) {
+                    setDlg(() => error = 'Please select a clinic');
+                    return;
+                  }
                   Navigator.pop(ctx);
                   final consult = consultations.firstWhere((c) => c.id == selectedConsultId!);
                   ref.read(providerControllerProvider.notifier).issueReferral(
-                    selectedConsultId!, selectedConsultId!, notesCtrl.text.trim());
+                    selectedConsultId!, selectedFacilityId!, notesCtrl.text.trim());
                   setState(() {
                     _issued.add(_IssuedReferral(
                       patientId: consult.patientAnonymousId,
